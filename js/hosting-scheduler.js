@@ -281,6 +281,10 @@ function initScheduler(deps) {
                     lastRenewedAt: now,
                     suspended: false,
                     renewalCount: (account.renewalCount || 0) + 1,
+                    // GAP-4 (2026-09): clear any prior auto-renew failure state on success.
+                    autoRenewLastError: null,
+                    autoRenewLastAttemptAt: now,
+                    suspendedReason: null,
                   },
                 },
                 { returnDocument: 'after', includeResultMetadata: false }
@@ -319,6 +323,15 @@ function initScheduler(deps) {
               log(`[HostingScheduler] Auto-renewed ${domain} (${plan}) for ${chatId} — charged $${price}`)
               continue
             } else {
+              // GAP-4 (2026-09): record WHY auto-renew didn't run so the reseller API can surface it
+              // (GET /hosting/:user → auto_renew_last_error). Recorded even if already suspended; the
+              // next attempt is the next hourly sweep. Cleared on a successful renew (above).
+              try {
+                await cpanelAccounts.updateOne(
+                  { _id: account._id },
+                  { $set: { autoRenewLastError: 'insufficient_funds', autoRenewLastAttemptAt: now } }
+                )
+              } catch (_) { /* best-effort */ }
               if (!account.suspended) {
                 const { usdBal } = result
                 const langB = await getUserLang(chatId)
@@ -339,11 +352,13 @@ function initScheduler(deps) {
 
           // ── Immediate suspension on expiry — website goes offline right away ──
           if (!account.suspended) {
+            // GAP-4 (2026-09): capture a machine-readable suspension reason for the reseller API.
+            const suspendReason = (isAutoRenew && price > 0) ? 'auto_renew_insufficient_funds' : 'plan_expired'
             await suspendAccount(account.cpUser, 'Plan expired — hosting suspended')
 
             await cpanelAccounts.updateOne(
               { _id: account._id },
-              { $set: { suspended: true, suspendedAt: now } }
+              { $set: { suspended: true, suspendedAt: now, suspendedReason: suspendReason } }
             )
 
             suspended++

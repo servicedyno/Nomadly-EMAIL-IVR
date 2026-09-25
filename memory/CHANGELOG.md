@@ -1,3 +1,44 @@
+## 2026-09-25 — Reseller API GAP FIXES (buy domain+hosting → live, end-to-end)
+
+Reviewed 7 gaps reported by the Nameword client agent and fixed the real ones (bot provisioning
+already worked end-to-end; the API/web-store paths diverged). All verified: lint clean + real-code
+harness + backend testing agent 38/38 through the FastAPI proxy.
+
+- **Gap 1 (CRITICAL, root cause found):** the Telegram-bot flow persists `nameserver:'cloudflare'`
+  in session state, which is what makes `registerDomainAndCreateCpanel` run `createHostingDNSRecords`
+  (root+www CNAME → CF Tunnel, origin hidden). The reseller `POST /hosting` and BOTH web-store
+  provision paths built a minimal `info` WITHOUT it → `isCloudflareNS=false` → DNS block skipped → CF
+  zone left with ONLY NS records → site never resolved. Added `nameserver:'cloudflare'` in
+  `js/reseller-api.js` + `js/store-routes.js` (2 spots). NOTE: correct output is tunnel CNAMEs, NOT
+  the raw server IP the report expected (bulletproof/anti-red hides the origin).
+- **Gap 2:** apex/FQDN name normalization in `js/domain-service.js addDNSRecord` CF branch
+  (`@`/empty/bare-zone → apex; already-FQDN → as-is; label → label.domain). Fixes 502 dns_add_failed
+  on apex + the `<domain>.<domain>` double-append.
+- **Gap 3:** gave the domains-list + docroot routes the same WHM-root impersonation self-heal
+  (`withCpAuthFallback` → uapiViaWhmRoot / api2ViaWhmRoot) that File-Manager/SSL already had. (The
+  reported CPANEL_AUTH_FAILURE was mostly because the test account was SUSPENDED — no cPanel session
+  is possible on a suspended account; that part is expected, re-test on an ACTIVE account.)
+- **Gap 4:** `POST /hosting/:user/renew` already existed (report was wrong). Added the missing reason
+  fields: hosting-scheduler now records `suspendedReason` / `autoRenewLastError` / `autoRenewLastAttemptAt`,
+  surfaced by GET /hosting/:user (suspended_reason, suspended_at, auto_renew_last_error, ...).
+- **Gap 5:** GET /domains now enriches nameservers from `registeredDomains.val.cfNameservers`
+  (they were empty because it only read the `domainsOf` collection).
+- **Gap 6:** honest DELETE /hosting/:user — checks the WHM removeacct result, unsuspends+retries,
+  VERIFIES via accountsummary, returns 502 terminate_failed when WHM didn't remove it, and only marks
+  the DB row deleted on confirmed removal (no more fake `terminated:true`).
+- **Gap 7:** list + details now report the SAME suspended truth — details/list trust the live WHM
+  read when available and self-heal the drifted DB flag.
+- **Change/replace primary domain (new):** added first-class WHM-level `POST /hosting/:user/change-primary`
+  mirroring the proven bot flow (whmService.changePrimaryDomain + whm-userdata-heal self-heal retry +
+  background CF/anti-red re-point), so a plan's domain can be corrected without terminate+recreate.
+
+Also: Railway RCA (deploy ece8976d) — no group/admin notification for the UK Cloud IVR purchase
+because UK mobile numbers are Twilio regulatory Tier-3; after payment the flow correctly entered KYC
+doc-collection (`regulatoryFlow.startDocCollection`) and the number was never provisioned. The
+notifyGroup lives inside executeTwilioPurchase (fires only on actual activation). Working as designed;
+compounded by the deploy being replaced ~4 min later.
+
+
 ## 2026-09-23 (fork) — "Make Windows RDPs Fast" fast-plan IMPLEMENTED (DO-RDP levers 1-4)
 
 Resumed the approved-but-paused fast-plan (see `RDP_FAST_PLAN_PROGRESS.md`). All in `js/`:

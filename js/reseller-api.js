@@ -350,14 +350,31 @@ function createResellerApi(deps = {}) {
 
   router.get('/domains', apiKeyAuth, h(async (req, res) => {
     const docs = await col('domainsOf').find({ chatId: String(req.reseller.ownerChatId) }).limit(500).toArray()
+    // GAP-5 FIX (2026-09): the delegated (Cloudflare) nameservers live in the registeredDomains
+    // collection (val.cfNameservers), not in domainsOf — so GET /domains reported []. Batch-load
+    // registeredDomains for these domains and fill NS from there when the domainsOf doc lacks them.
+    const names = docs.map(d => String(d.domainName || '').toLowerCase()).filter(Boolean)
+    const nsMap = {}
+    if (names.length) {
+      try {
+        const regs = await col('registeredDomains').find({ _id: { $in: names } }).toArray()
+        for (const rd of regs) {
+          const v = rd.val || {}
+          const ns = v.cfNameservers || v.nameservers || rd.nameservers || []
+          if (Array.isArray(ns) && ns.length) nsMap[String(rd._id).toLowerCase()] = ns
+        }
+      } catch (_) { /* best-effort enrichment */ }
+    }
     res.json({ domains: docs.map(d => {
       const rawExp = d.expiresAt || d.expiryDate || d.renewalDate || d.expiry || (d.val && (d.val.expiresAt || d.val.expiryDate)) || null
       const exp = rawExp ? new Date(rawExp) : null
+      const localNs = d.nameservers || (d.val && (d.val.cfNameservers || d.val.nameservers)) || []
+      const nameservers = (Array.isArray(localNs) && localNs.length) ? localNs : (nsMap[String(d.domainName || '').toLowerCase()] || [])
       return {
         domain: d.domainName,
         registrar: d.registrar || null,
         nameserver_type: d.nameserverType || null,
-        nameservers: d.nameservers || (d.val && (d.val.cfNameservers || d.val.nameservers)) || [],
+        nameservers,
         registered_at: d.registeredAt || null,
         expires_at: (exp && !isNaN(exp)) ? exp.toISOString() : null,
         dns_records_url: `/dns/${d.domainName}/records`,
@@ -784,6 +801,13 @@ function createResellerApi(deps = {}) {
           _id: `reseller_${crypto.randomUUID()}`, website_name: domain, plan: plan.name, email,
           userLanguage: 'en', price: total, hostingPrice: plan.priceUsd, registrar, source: 'reseller_api',
           ownerChatId: String(req.reseller.ownerChatId),
+          // GAP-1 FIX (2026-09): bulletproof/anti-red hosting is ALWAYS Cloudflare-fronted.
+          // The Telegram-bot flow persists `nameserver:'cloudflare'` in session state, which is
+          // what makes registerDomainAndCreateCpanel run createHostingDNSRecords (root+www CNAME →
+          // Cloudflare Tunnel, origin IP hidden). The API/web-store paths omitted it, so
+          // `isCloudflareNS` was false and the CF zone was left with ONLY NS records → site never
+          // resolved. Passing it here makes the API provision DNS identically to the bot.
+          nameserver: 'cloudflare', nsChoice: 'cloudflare',
         }
         if (domainMode === 'byo') { info.existingDomain = true; info.connectExternalDomain = true }
         const r = await registerDomainAndCreateCpanel(() => {}, info, [], col('state'), null)
@@ -810,6 +834,7 @@ function createResellerApi(deps = {}) {
     // fan-out). Off by default so the plain list stays fast.
     const wantUsage = String(req.query.usage || '') === 'true'
     const diskByUser = {}
+    const liveSuspendedByUser = {}
     if (wantUsage) {
       await Promise.all(docs.slice(0, 50).map(async (d) => {
         const u = d.cpUser || d._id
@@ -818,6 +843,13 @@ function createResellerApi(deps = {}) {
           if (info && info.success && info.data) {
             const full = parseHostingUsage(info.data)
             diskByUser[u] = full ? { disk_used_mb: full.disk_used_mb, disk_limit: full.disk_limit, disk_used_pct: full.disk_used_pct } : null
+            // GAP-7 FIX (2026-09): capture the live WHM suspended state so ?usage=true reflects the
+            // same truth as GET /hosting/:user, and self-heal the DB flag when it has drifted.
+            const live = full ? (full.suspended === true) : false
+            liveSuspendedByUser[d._id] = live
+            if (live !== !!d.suspended) {
+              col('cpanelAccounts').updateOne({ _id: d._id }, { $set: { suspended: live, suspendedSyncedAt: new Date() } }).catch(() => {})
+            }
           }
         } catch (_) { /* best-effort per account */ }
       }))
@@ -828,11 +860,12 @@ function createResellerApi(deps = {}) {
       usage_included: wantUsage,
       accounts: docs.map(d => {
         const u = d._id || d.username
+        const suspended = Object.prototype.hasOwnProperty.call(liveSuspendedByUser, d._id) ? liveSuspendedByUser[d._id] : !!d.suspended
         return {
           username: u,
           domain: d.domain,
           plan: d.plan || null,
-          suspended: !!d.suspended,
+          suspended,
           created_at: d.createdAt || null,
           expires_at: d.expiryDate ? new Date(d.expiryDate).toISOString() : null,
           credentials_url: `/hosting/${u}/credentials`,
@@ -860,7 +893,7 @@ function createResellerApi(deps = {}) {
     if (!acct) return res.status(404).json({ error: 'not_found' })
     if (!isLive()) return res.json({ mode: 'dry_run', username: acct._id, note: 'Dry-run: account not unsuspended.' })
     const r = await whmService.unsuspendAccount(acct._id)
-    await col('cpanelAccounts').updateOne({ _id: acct._id }, { $set: { suspended: false } })
+    await col('cpanelAccounts').updateOne({ _id: acct._id }, { $set: { suspended: false, suspendedReason: null } })
     res.json({ mode: 'live', username: acct._id, suspended: false, detail: r || null })
   }))
 
@@ -937,9 +970,27 @@ function createResellerApi(deps = {}) {
     const acct = await loadOwnedCpanel(req, req.params.user)
     if (!acct) return res.status(404).json({ error: 'not_found' })
     if (!isLive()) return res.json({ mode: 'dry_run', username: acct._id, note: 'Dry-run: account not terminated.' })
-    const r = await whmService.terminateAccount(acct._id)
+    // GAP-6 FIX (2026-09): terminate HONESTLY. whmService.terminateAccount() returns a boolean
+    // (WHM removeacct result===1). WHM commonly refuses to remove a SUSPENDED account, so if the
+    // first attempt fails we unsuspend and retry once, then VERIFY the account is actually gone via
+    // accountsummary. Only mark the DB row deleted (which hides it from GET /hosting) when WHM
+    // confirms removal — otherwise the account becomes a ghost (hidden from us, alive on the server).
+    let ok = await whmService.terminateAccount(acct._id)
+    if (!ok) {
+      try { await whmService.unsuspendAccount(acct._id) } catch (_) { /* best-effort — WHM may refuse a suspended account */ }
+      ok = await whmService.terminateAccount(acct._id)
+    }
+    let stillExists = false
+    try { const info = await whmService.getAccountInfo(acct._id); stillExists = !!(info && info.success) } catch (_) { stillExists = false }
+    if (!ok || stillExists) {
+      return res.status(502).json({
+        error: 'terminate_failed',
+        message: 'WHM did not remove the account (it may still be suspended or held by the server). Unsuspend and retry, or terminate at the panel.',
+        username: acct._id, terminated: false, whm_result: ok, still_exists: stillExists,
+      })
+    }
     await col('cpanelAccounts').updateOne({ _id: acct._id }, { $set: { deleted: true, deletedAt: new Date() } })
-    res.json({ mode: 'live', username: acct._id, terminated: true, detail: r || null })
+    res.json({ mode: 'live', username: acct._id, terminated: true })
   }))
 
   router.get('/hosting/:user/login', apiKeyAuth, h(async (req, res) => {
@@ -1135,7 +1186,7 @@ function createResellerApi(deps = {}) {
       provision: async () => {
         const base = (acct.expiryDate && new Date(acct.expiryDate) > new Date()) ? new Date(acct.expiryDate) : new Date()
         const newExpiry = new Date(base.getTime() + durationDays * 86400000)
-        await col('cpanelAccounts').updateOne({ _id: acct._id }, { $set: { expiryDate: newExpiry, lastRenewedAt: new Date(), renewalPriceUsd: price, suspended: false } })
+        await col('cpanelAccounts').updateOne({ _id: acct._id }, { $set: { expiryDate: newExpiry, lastRenewedAt: new Date(), renewalPriceUsd: price, suspended: false, suspendedReason: null, autoRenewLastError: null } })
         if (acct.suspended) { try { await whmService.unsuspendAccount(acct._id) } catch (e) { log(`[ResellerAPI] renew unsuspend warn: ${e.message}`) } }
         return { success: true, username: acct._id, domain: acct.domain, plan: acct.plan, new_expiry: newExpiry.toISOString() }
       },
@@ -1268,14 +1319,33 @@ function createResellerApi(deps = {}) {
         } catch (_) { /* bandwidth best-effort */ }
       }
     } catch (e) { usage = { error: e.message } }
+    // GAP-7 FIX (2026-09): the DB `suspended` flag can drift from the live WHM state (WHM
+    // auto-suspends for overdue/expiry without our flag being updated), which is why the fast
+    // DB-only list and this live-reading detail view could disagree. When the live WHM read
+    // succeeded, trust it as the source of truth and self-heal the DB flag so the list converges.
+    // (parseHostingUsage maps WHM suspended:1 → true and suspended:0 → undefined, so on a healthy
+    //  read `usage.suspended === true` means suspended and anything else means active.)
+    const liveRead = !!(usage && !usage.error)
+    const liveSuspended = liveRead ? (usage.suspended === true) : null
+    const suspended = (liveSuspended !== null) ? liveSuspended : !!acct.suspended
+    if (liveSuspended !== null && liveSuspended !== !!acct.suspended) {
+      col('cpanelAccounts').updateOne({ _id: acct._id }, { $set: { suspended: liveSuspended, suspendedSyncedAt: new Date() } }).catch(() => {})
+    }
     res.json({
       username: acct._id || acct.username,
       domain: acct.domain || null,
       plan: acct.plan || null,
       price_usd: hostingScheduler.getPlanPrice(acct),
       duration_days: hostingScheduler.getPlanDuration(acct.plan),
-      suspended: !!acct.suspended,
+      suspended,
+      // GAP-4 FIX (2026-09): surface WHY the account is suspended / why auto-renew didn't run, so an
+      // integrator can act (e.g. auto_renew_last_error 'insufficient_funds' → top up wallet, then
+      // POST /hosting/:user/renew). Populated by the hosting scheduler's expiry/auto-renew sweep.
+      suspended_reason: acct.suspendedReason || null,
+      suspended_at: acct.suspendedAt ? new Date(acct.suspendedAt).toISOString() : null,
       auto_renew: acct.autoRenew !== false,
+      auto_renew_last_error: acct.autoRenewLastError || null,
+      auto_renew_last_attempt_at: acct.autoRenewLastAttemptAt ? new Date(acct.autoRenewLastAttemptAt).toISOString() : null,
       created_at: acct.createdAt || null,
       expires_at: acct.expiryDate ? new Date(acct.expiryDate).toISOString() : null,
       deliverables: hostingDeliverables(acct, nameservers),

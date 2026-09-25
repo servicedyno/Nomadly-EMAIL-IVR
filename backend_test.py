@@ -1,531 +1,660 @@
 #!/usr/bin/env python3
 """
-Backend Test Suite for DigitalOcean RDP Reseller API Endpoints
-Testing the NEW password-reset and reinstall endpoints on e2e-rdp-1
+Comprehensive Backend Test for Reseller API GAP FIXES (2026-09-25)
+
+This test suite verifies all GAP fixes on the Node/Express reseller router:
+- GAP5: GET /domains - nameservers enrichment from registeredDomains
+- GAP4: GET /hosting/gapacct2 - suspended_reason, auto_renew_last_error, suspended_at, auto_renew_last_attempt_at
+- GAP7: GET /hosting/gapacct1 - suspended override from WHM stub
+- GAP6: DELETE /hosting/gapacct2 - honest dry_run (no fake terminated:true)
+- GAP2: POST /dns/zone-a.example/records - apex/name normalization
+- CHANGE-PRIMARY: POST /hosting/:user/change-primary - new endpoint with validation
+- Auth/negative tests
+
+Environment: DEV SANDBOX (SKIP_WEBHOOK_SYNC=true, isLive()=false)
+All mutating calls return {"mode":"dry_run", ...}
 """
 
 import requests
 import json
 import sys
-from typing import Dict, Any, Optional
+from typing import Dict, Any, List, Tuple
 
 # Configuration
-BASE_URL = "https://reseller-blockers.preview.emergentagent.com/api/reseller/v1"
-API_KEY = "nmdly_e2e_51573577f5db956c5c0cb039"
-TEST_RDP_ID = "e2e-rdp-1"
+# Using local Node.js server directly (FastAPI proxy has routing issues)
+BASE_URL = "http://127.0.0.1:5000/reseller/v1"
+API_KEY = "nmdly_test_reseller_gapfix"
+HEADERS = {
+    "X-API-Key": API_KEY,
+    "Content-Type": "application/json"
+}
+HEADERS_BEARER = {
+    "Authorization": f"Bearer {API_KEY}",
+    "Content-Type": "application/json"
+}
 
-# Test counters
-tests_passed = 0
-tests_failed = 0
+# Test results tracking
 test_results = []
+total_tests = 0
+passed_tests = 0
+failed_tests = 0
 
 
-def log_test(test_name: str, passed: bool, details: str = ""):
+def log_test(test_name: str, passed: bool, details: str = "", response_data: Any = None):
     """Log test result"""
-    global tests_passed, tests_failed
-    status = "✅ PASS" if passed else "❌ FAIL"
+    global total_tests, passed_tests, failed_tests
+    total_tests += 1
     if passed:
-        tests_passed += 1
+        passed_tests += 1
+        status = "✅ PASS"
     else:
-        tests_failed += 1
+        failed_tests += 1
+        status = "❌ FAIL"
     
-    result = f"{status} | {test_name}"
-    if details:
-        result += f"\n    {details}"
-    
-    print(result)
-    test_results.append({
+    result = {
         "test": test_name,
-        "passed": passed,
-        "details": details
-    })
+        "status": status,
+        "details": details,
+        "response": response_data
+    }
+    test_results.append(result)
+    print(f"{status}: {test_name}")
+    if details:
+        print(f"  → {details}")
+    if not passed and response_data:
+        print(f"  → Response: {json.dumps(response_data, indent=2)}")
 
 
-def make_request(method: str, path: str, headers: Optional[Dict] = None, 
-                 json_data: Optional[Dict] = None) -> tuple:
-    """Make HTTP request and return (status_code, response_json)"""
-    url = f"{BASE_URL}{path}"
-    
-    if headers is None:
-        headers = {}
+def test_gap5_domains_nameservers():
+    """GAP5: GET /domains - nameservers enrichment from registeredDomains"""
+    print("\n" + "="*80)
+    print("★★★ GAP5: GET /domains - Nameservers Enrichment ★★★")
+    print("="*80)
     
     try:
-        if method == "GET":
-            resp = requests.get(url, headers=headers, timeout=10)
-        elif method == "POST":
-            resp = requests.post(url, headers=headers, json=json_data, timeout=10)
-        else:
-            return (0, {"error": f"Unsupported method: {method}"})
+        response = requests.get(f"{BASE_URL}/domains", headers=HEADERS, timeout=10)
+        data = response.json()
         
-        try:
-            return (resp.status_code, resp.json())
-        except:
-            return (resp.status_code, {"error": "Invalid JSON", "text": resp.text[:200]})
+        # Test 1: HTTP 200
+        log_test(
+            "GAP5.1: GET /domains returns 200",
+            response.status_code == 200,
+            f"Status: {response.status_code}",
+            data if response.status_code != 200 else None
+        )
+        
+        if response.status_code == 200:
+            # Test 2: Find zone-a.example
+            domains = data.get("domains", [])
+            zone_a = None
+            for domain in domains:
+                if domain.get("domain") == "zone-a.example":
+                    zone_a = domain
+                    break
+            
+            log_test(
+                "GAP5.2: zone-a.example found in domains list",
+                zone_a is not None,
+                f"Found: {zone_a is not None}",
+                {"domains_count": len(domains), "zone_a": zone_a}
+            )
+            
+            if zone_a:
+                # Test 3: Nameservers field exists
+                has_ns = "nameservers" in zone_a
+                log_test(
+                    "GAP5.3: zone-a.example has nameservers field",
+                    has_ns,
+                    f"Has nameservers: {has_ns}",
+                    zone_a
+                )
+                
+                # Test 4: Nameservers are enriched from registeredDomains
+                ns = zone_a.get("nameservers", [])
+                expected_ns = ["x.ns.cloudflare.com", "y.ns.cloudflare.com"]
+                ns_match = set(ns) == set(expected_ns)
+                log_test(
+                    "GAP5.4: nameservers = [x.ns.cloudflare.com, y.ns.cloudflare.com]",
+                    ns_match,
+                    f"Expected: {expected_ns}, Got: {ns}",
+                    zone_a
+                )
     except Exception as e:
-        return (0, {"error": str(e)})
+        log_test("GAP5: GET /domains", False, f"Exception: {str(e)}")
 
 
-def test_d1_password_reset():
-    """D1 - POST /rdp/e2e-rdp-1/password-reset (no body)"""
-    print("\n=== TEST D1: Password Reset ===")
+def test_gap4_hosting_gapacct2_details():
+    """GAP4: GET /hosting/gapacct2 - suspended_reason, auto_renew_last_error, suspended_at, auto_renew_last_attempt_at"""
+    print("\n" + "="*80)
+    print("★★★ GAP4: GET /hosting/gapacct2 - Suspension Details ★★★")
+    print("="*80)
     
-    headers = {"X-API-Key": API_KEY}
-    status, data = make_request("POST", f"/rdp/{TEST_RDP_ID}/password-reset", headers=headers)
-    
-    # Check status code
-    if status != 200:
-        log_test("D1: Password Reset - Status Code", False, 
-                f"Expected 200, got {status}. Response: {json.dumps(data, indent=2)}")
-        return
-    
-    log_test("D1: Password Reset - Status Code", True, f"Got 200")
-    
-    # Check response structure
-    required_fields = ["mode", "id", "username", "method", "note"]
-    missing_fields = [f for f in required_fields if f not in data]
-    
-    if missing_fields:
-        log_test("D1: Password Reset - Response Structure", False,
-                f"Missing fields: {missing_fields}. Response: {json.dumps(data, indent=2)}")
-        return
-    
-    log_test("D1: Password Reset - Response Structure", True, 
-            f"All required fields present")
-    
-    # Check field values
-    checks = []
-    if data.get("mode") != "dry_run":
-        checks.append(f"mode is '{data.get('mode')}' (expected 'dry_run')")
-    if data.get("id") != TEST_RDP_ID:
-        checks.append(f"id is '{data.get('id')}' (expected '{TEST_RDP_ID}')")
-    if data.get("username") != "Administrator":
-        checks.append(f"username is '{data.get('username')}' (expected 'Administrator')")
-    if data.get("method") != "agent":
-        checks.append(f"method is '{data.get('method')}' (expected 'agent')")
-    if not isinstance(data.get("note"), str):
-        checks.append(f"note is not a string")
-    
-    if checks:
-        log_test("D1: Password Reset - Field Values", False, 
-                f"Issues: {'; '.join(checks)}")
-    else:
-        log_test("D1: Password Reset - Field Values", True,
-                f"mode=dry_run, id={TEST_RDP_ID}, username=Administrator, method=agent")
+    try:
+        response = requests.get(f"{BASE_URL}/hosting/gapacct2", headers=HEADERS, timeout=10)
+        data = response.json()
+        
+        # Test 1: HTTP 200
+        log_test(
+            "GAP4.1: GET /hosting/gapacct2 returns 200",
+            response.status_code == 200,
+            f"Status: {response.status_code}",
+            data if response.status_code != 200 else None
+        )
+        
+        if response.status_code == 200:
+            # Test 2: suspended_reason field
+            has_suspended_reason = "suspended_reason" in data
+            suspended_reason = data.get("suspended_reason")
+            log_test(
+                "GAP4.2: suspended_reason field present",
+                has_suspended_reason and suspended_reason is not None,
+                f"suspended_reason: {suspended_reason}",
+                data
+            )
+            
+            # Test 3: suspended_reason value
+            log_test(
+                "GAP4.3: suspended_reason == 'auto_renew_insufficient_funds'",
+                suspended_reason == "auto_renew_insufficient_funds",
+                f"Expected: 'auto_renew_insufficient_funds', Got: {suspended_reason}",
+                data
+            )
+            
+            # Test 4: auto_renew_last_error field
+            has_auto_renew_error = "auto_renew_last_error" in data
+            auto_renew_error = data.get("auto_renew_last_error")
+            log_test(
+                "GAP4.4: auto_renew_last_error field present",
+                has_auto_renew_error and auto_renew_error is not None,
+                f"auto_renew_last_error: {auto_renew_error}",
+                data
+            )
+            
+            # Test 5: auto_renew_last_error value
+            log_test(
+                "GAP4.5: auto_renew_last_error == 'insufficient_funds'",
+                auto_renew_error == "insufficient_funds",
+                f"Expected: 'insufficient_funds', Got: {auto_renew_error}",
+                data
+            )
+            
+            # Test 6: suspended_at field (ISO date)
+            has_suspended_at = "suspended_at" in data
+            suspended_at = data.get("suspended_at")
+            log_test(
+                "GAP4.6: suspended_at field present (ISO date)",
+                has_suspended_at and suspended_at is not None and isinstance(suspended_at, str),
+                f"suspended_at: {suspended_at}",
+                data
+            )
+            
+            # Test 7: auto_renew_last_attempt_at field (ISO date)
+            has_attempt_at = "auto_renew_last_attempt_at" in data
+            attempt_at = data.get("auto_renew_last_attempt_at")
+            log_test(
+                "GAP4.7: auto_renew_last_attempt_at field present (ISO date)",
+                has_attempt_at and attempt_at is not None and isinstance(attempt_at, str),
+                f"auto_renew_last_attempt_at: {attempt_at}",
+                data
+            )
+    except Exception as e:
+        log_test("GAP4: GET /hosting/gapacct2", False, f"Exception: {str(e)}")
 
 
-def test_d2a_reinstall_ws2019():
-    """D2a - POST /rdp/e2e-rdp-1/reinstall body {"os":"ws2019"}"""
-    print("\n=== TEST D2a: Reinstall with ws2019 ===")
+def test_gap7_hosting_gapacct1_suspended_override():
+    """GAP7: GET /hosting/gapacct1 - suspended override from WHM stub"""
+    print("\n" + "="*80)
+    print("★★★ GAP7: GET /hosting/gapacct1 - Suspended Override ★★★")
+    print("="*80)
     
-    headers = {"X-API-Key": API_KEY}
-    body = {"os": "ws2019"}
-    status, data = make_request("POST", f"/rdp/{TEST_RDP_ID}/reinstall", 
-                               headers=headers, json_data=body)
-    
-    # Check status code
-    if status != 200:
-        log_test("D2a: Reinstall ws2019 - Status Code", False,
-                f"Expected 200, got {status}. Response: {json.dumps(data, indent=2)}")
-        return
-    
-    log_test("D2a: Reinstall ws2019 - Status Code", True, f"Got 200")
-    
-    # Check response structure
-    required_fields = ["mode", "id", "os", "note"]
-    missing_fields = [f for f in required_fields if f not in data]
-    
-    if missing_fields:
-        log_test("D2a: Reinstall ws2019 - Response Structure", False,
-                f"Missing fields: {missing_fields}. Response: {json.dumps(data, indent=2)}")
-        return
-    
-    log_test("D2a: Reinstall ws2019 - Response Structure", True,
-            f"All required fields present")
-    
-    # Check field values
-    checks = []
-    if data.get("mode") != "dry_run":
-        checks.append(f"mode is '{data.get('mode')}' (expected 'dry_run')")
-    if data.get("id") != TEST_RDP_ID:
-        checks.append(f"id is '{data.get('id')}' (expected '{TEST_RDP_ID}')")
-    if data.get("os") != "ws2019":
-        checks.append(f"os is '{data.get('os')}' (expected 'ws2019')")
-    if not isinstance(data.get("note"), str):
-        checks.append(f"note is not a string")
-    
-    if checks:
-        log_test("D2a: Reinstall ws2019 - Field Values", False,
-                f"Issues: {'; '.join(checks)}")
-    else:
-        log_test("D2a: Reinstall ws2019 - Field Values", True,
-                f"mode=dry_run, id={TEST_RDP_ID}, os=ws2019")
+    try:
+        # Test 1: GET /hosting/gapacct1
+        response = requests.get(f"{BASE_URL}/hosting/gapacct1", headers=HEADERS, timeout=10)
+        data = response.json()
+        
+        log_test(
+            "GAP7.1: GET /hosting/gapacct1 returns 200",
+            response.status_code == 200,
+            f"Status: {response.status_code}",
+            data if response.status_code != 200 else None
+        )
+        
+        if response.status_code == 200:
+            # Test 2: suspended field is true (WHM override)
+            suspended = data.get("suspended")
+            log_test(
+                "GAP7.2: suspended == true (WHM stub overrides DB false)",
+                suspended is True,
+                f"Expected: true, Got: {suspended}",
+                data
+            )
+        
+        # Test 3: GET /hosting?usage=true - gapacct1 also shows suspended:true
+        response_list = requests.get(f"{BASE_URL}/hosting?usage=true", headers=HEADERS, timeout=10)
+        data_list = response_list.json()
+        
+        log_test(
+            "GAP7.3: GET /hosting?usage=true returns 200",
+            response_list.status_code == 200,
+            f"Status: {response_list.status_code}",
+            data_list if response_list.status_code != 200 else None
+        )
+        
+        if response_list.status_code == 200:
+            # Find gapacct1 in list
+            accounts = data_list.get("accounts", [])
+            gapacct1 = None
+            for account in accounts:
+                if account.get("user") == "gapacct1" or account.get("username") == "gapacct1":
+                    gapacct1 = account
+                    break
+            
+            log_test(
+                "GAP7.4: gapacct1 found in hosting list",
+                gapacct1 is not None,
+                f"Found: {gapacct1 is not None}",
+                {"accounts_count": len(accounts), "gapacct1": gapacct1}
+            )
+            
+            if gapacct1:
+                suspended_in_list = gapacct1.get("suspended")
+                log_test(
+                    "GAP7.5: gapacct1 suspended == true in list",
+                    suspended_in_list is True,
+                    f"Expected: true, Got: {suspended_in_list}",
+                    gapacct1
+                )
+    except Exception as e:
+        log_test("GAP7: GET /hosting/gapacct1", False, f"Exception: {str(e)}")
 
 
-def test_d2b_reinstall_invalid_os():
-    """D2b - POST /rdp/e2e-rdp-1/reinstall body {"os":"badxx"}"""
-    print("\n=== TEST D2b: Reinstall with Invalid OS ===")
+def test_gap6_delete_hosting_honest_dryrun():
+    """GAP6: DELETE /hosting/gapacct2 - honest dry_run (no fake terminated:true)"""
+    print("\n" + "="*80)
+    print("★★★ GAP6: DELETE /hosting/gapacct2 - Honest Dry-Run ★★★")
+    print("="*80)
     
-    headers = {"X-API-Key": API_KEY}
-    body = {"os": "badxx"}
-    status, data = make_request("POST", f"/rdp/{TEST_RDP_ID}/reinstall",
-                               headers=headers, json_data=body)
-    
-    # Check status code
-    if status != 400:
-        log_test("D2b: Invalid OS - Status Code", False,
-                f"Expected 400, got {status}. Response: {json.dumps(data, indent=2)}")
-        return
-    
-    log_test("D2b: Invalid OS - Status Code", True, f"Got 400")
-    
-    # Check error response
-    if data.get("error") != "invalid_os":
-        log_test("D2b: Invalid OS - Error Code", False,
-                f"Expected error='invalid_os', got '{data.get('error')}'. Response: {json.dumps(data, indent=2)}")
-        return
-    
-    log_test("D2b: Invalid OS - Error Code", True, f"error='invalid_os'")
-    
-    # Check message contains valid OS options
-    message = data.get("message", "")
-    valid_os = ["ws2019", "ws2022", "ws2025"]
-    missing_os = [os for os in valid_os if os not in message]
-    
-    if missing_os:
-        log_test("D2b: Invalid OS - Error Message", False,
-                f"Message missing OS options: {missing_os}. Message: {message}")
-    else:
-        log_test("D2b: Invalid OS - Error Message", True,
-                f"Message contains all valid OS options (ws2019, ws2022, ws2025)")
+    try:
+        response = requests.delete(f"{BASE_URL}/hosting/gapacct2", headers=HEADERS, timeout=10)
+        data = response.json()
+        
+        # Test 1: HTTP 200
+        log_test(
+            "GAP6.1: DELETE /hosting/gapacct2 returns 200",
+            response.status_code == 200,
+            f"Status: {response.status_code}",
+            data if response.status_code != 200 else None
+        )
+        
+        if response.status_code == 200:
+            # Test 2: mode == "dry_run"
+            mode = data.get("mode")
+            log_test(
+                "GAP6.2: mode == 'dry_run'",
+                mode == "dry_run",
+                f"Expected: 'dry_run', Got: {mode}",
+                data
+            )
+            
+            # Test 3: MUST NOT contain terminated:true (no fake success)
+            has_terminated = "terminated" in data
+            terminated = data.get("terminated")
+            log_test(
+                "GAP6.3: MUST NOT contain terminated:true (honest dry-run)",
+                not (has_terminated and terminated is True),
+                f"terminated field: {terminated if has_terminated else 'not present'}",
+                data
+            )
+    except Exception as e:
+        log_test("GAP6: DELETE /hosting/gapacct2", False, f"Exception: {str(e)}")
 
 
-def test_d2c_reinstall_empty_body():
-    """D2c - POST /rdp/e2e-rdp-1/reinstall body {} (empty JSON)"""
-    print("\n=== TEST D2c: Reinstall with Empty Body (Default OS) ===")
+def test_gap2_dns_apex_name_normalization():
+    """GAP2: POST /dns/zone-a.example/records - apex/name normalization"""
+    print("\n" + "="*80)
+    print("★★★ GAP2: POST /dns/zone-a.example/records - Apex/Name Normalization ★★★")
+    print("="*80)
     
-    headers = {"X-API-Key": API_KEY}
-    body = {}
-    status, data = make_request("POST", f"/rdp/{TEST_RDP_ID}/reinstall",
-                               headers=headers, json_data=body)
+    # Test 1: @ → zone-a.example (NOT @.zone-a.example)
+    try:
+        payload = {"type": "A", "name": "@", "value": "1.2.3.4"}
+        response = requests.post(
+            f"{BASE_URL}/dns/zone-a.example/records",
+            headers=HEADERS,
+            json=payload,
+            timeout=10
+        )
+        data = response.json()
+        
+        log_test(
+            "GAP2.1: POST /dns/zone-a.example/records (name='@') returns 200",
+            response.status_code == 200,
+            f"Status: {response.status_code}",
+            data if response.status_code != 200 else None
+        )
+        
+        if response.status_code == 200:
+            detail = data.get("detail", {})
+            record_name = detail.get("name")
+            log_test(
+                "GAP2.2: name='@' → detail.name == 'zone-a.example' (NOT '@.zone-a.example')",
+                record_name == "zone-a.example",
+                f"Expected: 'zone-a.example', Got: {record_name}",
+                data
+            )
+    except Exception as e:
+        log_test("GAP2.1-2: POST /dns (name='@')", False, f"Exception: {str(e)}")
     
-    # Check status code
-    if status != 200:
-        log_test("D2c: Empty Body - Status Code", False,
-                f"Expected 200, got {status}. Response: {json.dumps(data, indent=2)}")
-        return
+    # Test 2: zone-a.example → zone-a.example (NOT zone-a.example.zone-a.example)
+    try:
+        payload = {"type": "A", "name": "zone-a.example", "value": "1.2.3.4"}
+        response = requests.post(
+            f"{BASE_URL}/dns/zone-a.example/records",
+            headers=HEADERS,
+            json=payload,
+            timeout=10
+        )
+        data = response.json()
+        
+        log_test(
+            "GAP2.3: POST /dns/zone-a.example/records (name='zone-a.example') returns 200",
+            response.status_code == 200,
+            f"Status: {response.status_code}",
+            data if response.status_code != 200 else None
+        )
+        
+        if response.status_code == 200:
+            detail = data.get("detail", {})
+            record_name = detail.get("name")
+            log_test(
+                "GAP2.4: name='zone-a.example' → detail.name == 'zone-a.example' (NOT double-appended)",
+                record_name == "zone-a.example",
+                f"Expected: 'zone-a.example', Got: {record_name}",
+                data
+            )
+    except Exception as e:
+        log_test("GAP2.3-4: POST /dns (name='zone-a.example')", False, f"Exception: {str(e)}")
     
-    log_test("D2c: Empty Body - Status Code", True, f"Got 200")
-    
-    # Check response structure
-    if data.get("mode") != "dry_run":
-        log_test("D2c: Empty Body - Dry Run Mode", False,
-                f"Expected mode='dry_run', got '{data.get('mode')}'")
-        return
-    
-    log_test("D2c: Empty Body - Dry Run Mode", True, f"mode=dry_run")
-    
-    # Check OS defaults to ws2022 (the record's edition)
-    if data.get("os") != "ws2022":
-        log_test("D2c: Empty Body - Default OS", False,
-                f"Expected os='ws2022' (record default), got '{data.get('os')}'. Response: {json.dumps(data, indent=2)}")
-    else:
-        log_test("D2c: Empty Body - Default OS", True,
-                f"os defaulted to 'ws2022' (record's edition)")
+    # Test 3: www → www.zone-a.example
+    try:
+        payload = {"type": "A", "name": "www", "value": "1.2.3.4"}
+        response = requests.post(
+            f"{BASE_URL}/dns/zone-a.example/records",
+            headers=HEADERS,
+            json=payload,
+            timeout=10
+        )
+        data = response.json()
+        
+        log_test(
+            "GAP2.5: POST /dns/zone-a.example/records (name='www') returns 200",
+            response.status_code == 200,
+            f"Status: {response.status_code}",
+            data if response.status_code != 200 else None
+        )
+        
+        if response.status_code == 200:
+            detail = data.get("detail", {})
+            record_name = detail.get("name")
+            log_test(
+                "GAP2.6: name='www' → detail.name == 'www.zone-a.example'",
+                record_name == "www.zone-a.example",
+                f"Expected: 'www.zone-a.example', Got: {record_name}",
+                data
+            )
+    except Exception as e:
+        log_test("GAP2.5-6: POST /dns (name='www')", False, f"Exception: {str(e)}")
 
 
-def test_d3_get_rdp_with_agent_online():
-    """D3 - GET /rdp/e2e-rdp-1"""
-    print("\n=== TEST D3: GET RDP with agent_online Field ===")
+def test_change_primary_endpoint():
+    """CHANGE-PRIMARY: POST /hosting/:user/change-primary - new endpoint with validation"""
+    print("\n" + "="*80)
+    print("★★★ CHANGE-PRIMARY: POST /hosting/:user/change-primary ★★★")
+    print("="*80)
     
-    headers = {"X-API-Key": API_KEY}
-    status, data = make_request("GET", f"/rdp/{TEST_RDP_ID}", headers=headers)
+    # Test 1: Valid domain (not current primary) → dry_run
+    try:
+        payload = {"domain": "newprimary.example"}
+        response = requests.post(
+            f"{BASE_URL}/hosting/gapacct1/change-primary",
+            headers=HEADERS,
+            json=payload,
+            timeout=10
+        )
+        data = response.json()
+        
+        log_test(
+            "CHANGE-PRIMARY.1: POST /hosting/gapacct1/change-primary (valid domain) returns 200",
+            response.status_code == 200,
+            f"Status: {response.status_code}",
+            data if response.status_code != 200 else None
+        )
+        
+        if response.status_code == 200:
+            # Test 2: mode == "dry_run"
+            mode = data.get("mode")
+            log_test(
+                "CHANGE-PRIMARY.2: mode == 'dry_run'",
+                mode == "dry_run",
+                f"Expected: 'dry_run', Got: {mode}",
+                data
+            )
+            
+            # Test 3: from == "primary-a.example"
+            from_domain = data.get("from")
+            log_test(
+                "CHANGE-PRIMARY.3: from == 'primary-a.example'",
+                from_domain == "primary-a.example",
+                f"Expected: 'primary-a.example', Got: {from_domain}",
+                data
+            )
+            
+            # Test 4: to == "newprimary.example"
+            to_domain = data.get("to")
+            log_test(
+                "CHANGE-PRIMARY.4: to == 'newprimary.example'",
+                to_domain == "newprimary.example",
+                f"Expected: 'newprimary.example', Got: {to_domain}",
+                data
+            )
+    except Exception as e:
+        log_test("CHANGE-PRIMARY.1-4: Valid domain", False, f"Exception: {str(e)}")
     
-    # Check status code
-    if status != 200:
-        log_test("D3: GET RDP - Status Code", False,
-                f"Expected 200, got {status}. Response: {json.dumps(data, indent=2)}")
-        return
+    # Test 5: Already primary → 400 already_primary
+    try:
+        payload = {"domain": "primary-a.example"}
+        response = requests.post(
+            f"{BASE_URL}/hosting/gapacct1/change-primary",
+            headers=HEADERS,
+            json=payload,
+            timeout=10
+        )
+        data = response.json()
+        
+        log_test(
+            "CHANGE-PRIMARY.5: POST /hosting/gapacct1/change-primary (already primary) returns 400",
+            response.status_code == 400,
+            f"Status: {response.status_code}",
+            data if response.status_code != 400 else None
+        )
+        
+        if response.status_code == 400:
+            error = data.get("error")
+            log_test(
+                "CHANGE-PRIMARY.6: error == 'already_primary'",
+                error == "already_primary",
+                f"Expected: 'already_primary', Got: {error}",
+                data
+            )
+    except Exception as e:
+        log_test("CHANGE-PRIMARY.5-6: Already primary", False, f"Exception: {str(e)}")
     
-    log_test("D3: GET RDP - Status Code", True, f"Got 200")
-    
-    # Check agent_online field exists
-    if "agent_online" not in data:
-        log_test("D3: GET RDP - agent_online Field", False,
-                f"Missing 'agent_online' field. Response keys: {list(data.keys())}")
-        return
-    
-    log_test("D3: GET RDP - agent_online Field", True,
-            f"agent_online={data.get('agent_online')} (boolean)")
-    
-    # Check agent_online is boolean
-    if not isinstance(data.get("agent_online"), bool):
-        log_test("D3: GET RDP - agent_online Type", False,
-                f"agent_online is not boolean, got {type(data.get('agent_online'))}")
-    else:
-        log_test("D3: GET RDP - agent_online Type", True,
-                f"agent_online is boolean")
-    
-    # Check live block has DO-RDP shape (not Azure error)
-    if "live" not in data:
-        log_test("D3: GET RDP - live Block", False,
-                f"Missing 'live' field")
-        return
-    
-    live = data.get("live", {})
-    
-    # Check it's DO-RDP shape (has status, mainIp)
-    if "status" not in live:
-        log_test("D3: GET RDP - DO-RDP Shape", False,
-                f"live block missing 'status' field. live: {json.dumps(live, indent=2)}")
-        return
-    
-    # Check it's NOT an Azure error string
-    if isinstance(live, str) and "azure" in live.lower():
-        log_test("D3: GET RDP - Not Azure Error", False,
-                f"live block contains Azure error string: {live}")
-        return
-    
-    log_test("D3: GET RDP - DO-RDP Shape", True,
-            f"live block has DO-RDP shape (status={live.get('status')}, mainIp={live.get('mainIp')})")
-    
-    # Status "unknown" is expected for fake instance
-    if live.get("status") == "unknown":
-        log_test("D3: GET RDP - Status Unknown (Expected)", True,
-                f"status='unknown' for fake instance (expected)")
+    # Test 7: Invalid domain → 400 invalid_domain
+    try:
+        payload = {"domain": "notadomain"}
+        response = requests.post(
+            f"{BASE_URL}/hosting/gapacct1/change-primary",
+            headers=HEADERS,
+            json=payload,
+            timeout=10
+        )
+        data = response.json()
+        
+        log_test(
+            "CHANGE-PRIMARY.7: POST /hosting/gapacct1/change-primary (invalid domain) returns 400",
+            response.status_code == 400,
+            f"Status: {response.status_code}",
+            data if response.status_code != 400 else None
+        )
+        
+        if response.status_code == 400:
+            error = data.get("error")
+            log_test(
+                "CHANGE-PRIMARY.8: error == 'invalid_domain'",
+                error == "invalid_domain",
+                f"Expected: 'invalid_domain', Got: {error}",
+                data
+            )
+    except Exception as e:
+        log_test("CHANGE-PRIMARY.7-8: Invalid domain", False, f"Exception: {str(e)}")
 
 
-def test_auth_missing_key():
-    """Negative: POST /rdp/e2e-rdp-1/password-reset with NO api key"""
-    print("\n=== TEST AUTH: Missing API Key ===")
+def test_auth_negative():
+    """Auth/negative tests"""
+    print("\n" + "="*80)
+    print("★★★ AUTH/NEGATIVE TESTS ★★★")
+    print("="*80)
     
-    headers = {}  # No API key
-    status, data = make_request("POST", f"/rdp/{TEST_RDP_ID}/password-reset", headers=headers)
+    # Test 1: No API key → 401 missing_api_key
+    try:
+        response = requests.get(f"{BASE_URL}/domains", timeout=10)
+        data = response.json()
+        
+        log_test(
+            "AUTH.1: GET /domains (no API key) returns 401",
+            response.status_code == 401,
+            f"Status: {response.status_code}",
+            data if response.status_code != 401 else None
+        )
+        
+        if response.status_code == 401:
+            error = data.get("error")
+            log_test(
+                "AUTH.2: error == 'missing_api_key'",
+                error == "missing_api_key",
+                f"Expected: 'missing_api_key', Got: {error}",
+                data
+            )
+    except Exception as e:
+        log_test("AUTH.1-2: No API key", False, f"Exception: {str(e)}")
     
-    if status != 401:
-        log_test("Auth: Missing Key - Status Code", False,
-                f"Expected 401, got {status}. Response: {json.dumps(data, indent=2)}")
-        return
+    # Test 2: Non-existent account → 404 not_found
+    try:
+        response = requests.get(f"{BASE_URL}/hosting/does-not-exist", headers=HEADERS, timeout=10)
+        data = response.json()
+        
+        log_test(
+            "AUTH.3: GET /hosting/does-not-exist returns 404",
+            response.status_code == 404,
+            f"Status: {response.status_code}",
+            data if response.status_code != 404 else None
+        )
+        
+        if response.status_code == 404:
+            error = data.get("error")
+            log_test(
+                "AUTH.4: error == 'not_found'",
+                error == "not_found",
+                f"Expected: 'not_found', Got: {error}",
+                data
+            )
+    except Exception as e:
+        log_test("AUTH.3-4: Non-existent account", False, f"Exception: {str(e)}")
     
-    log_test("Auth: Missing Key - Status Code", True, f"Got 401")
-    
-    if data.get("error") != "missing_api_key":
-        log_test("Auth: Missing Key - Error Code", False,
-                f"Expected error='missing_api_key', got '{data.get('error')}'")
-    else:
-        log_test("Auth: Missing Key - Error Code", True,
-                f"error='missing_api_key'")
-
-
-def test_not_found_password_reset():
-    """Negative: POST /rdp/does-not-exist/password-reset"""
-    print("\n=== TEST NOT FOUND: Password Reset ===")
-    
-    headers = {"X-API-Key": API_KEY}
-    status, data = make_request("POST", "/rdp/does-not-exist/password-reset", headers=headers)
-    
-    if status != 404:
-        log_test("Not Found: Password Reset - Status Code", False,
-                f"Expected 404, got {status}. Response: {json.dumps(data, indent=2)}")
-        return
-    
-    log_test("Not Found: Password Reset - Status Code", True, f"Got 404")
-    
-    if data.get("error") != "not_found":
-        log_test("Not Found: Password Reset - Error Code", False,
-                f"Expected error='not_found', got '{data.get('error')}'")
-    else:
-        log_test("Not Found: Password Reset - Error Code", True,
-                f"error='not_found'")
-
-
-def test_not_found_reinstall():
-    """Negative: POST /rdp/does-not-exist/reinstall"""
-    print("\n=== TEST NOT FOUND: Reinstall ===")
-    
-    headers = {"X-API-Key": API_KEY}
-    body = {"os": "ws2019"}
-    status, data = make_request("POST", "/rdp/does-not-exist/reinstall", 
-                               headers=headers, json_data=body)
-    
-    if status != 404:
-        log_test("Not Found: Reinstall - Status Code", False,
-                f"Expected 404, got {status}. Response: {json.dumps(data, indent=2)}")
-        return
-    
-    log_test("Not Found: Reinstall - Status Code", True, f"Got 404")
-    
-    if data.get("error") != "not_found":
-        log_test("Not Found: Reinstall - Error Code", False,
-                f"Expected error='not_found', got '{data.get('error')}'")
-    else:
-        log_test("Not Found: Reinstall - Error Code", True,
-                f"error='not_found'")
-
-
-def test_regression_get_rdp_list():
-    """Regression: GET /rdp"""
-    print("\n=== TEST REGRESSION: GET /rdp List ===")
-    
-    headers = {"X-API-Key": API_KEY}
-    status, data = make_request("GET", "/rdp", headers=headers)
-    
-    if status != 200:
-        log_test("Regression: GET /rdp - Status Code", False,
-                f"Expected 200, got {status}. Response: {json.dumps(data, indent=2)}")
-        return
-    
-    log_test("Regression: GET /rdp - Status Code", True, f"Got 200")
-    
-    # Check response has rdp array
-    if "rdp" not in data:
-        log_test("Regression: GET /rdp - Response Structure", False,
-                f"Missing 'rdp' field. Response keys: {list(data.keys())}")
-        return
-    
-    log_test("Regression: GET /rdp - Response Structure", True,
-            f"Has 'rdp' array")
-    
-    # Check e2e-rdp-1 is in the list
-    rdp_list = data.get("rdp", [])
-    rdp_ids = [r.get("id") for r in rdp_list if isinstance(r, dict)]
-    
-    if TEST_RDP_ID not in rdp_ids:
-        log_test("Regression: GET /rdp - Contains e2e-rdp-1", False,
-                f"e2e-rdp-1 not found in list. IDs: {rdp_ids}")
-    else:
-        log_test("Regression: GET /rdp - Contains e2e-rdp-1", True,
-                f"e2e-rdp-1 found in list")
-
-
-def test_regression_get_rdp_plans():
-    """Regression: GET /rdp/plans?region=EU"""
-    print("\n=== TEST REGRESSION: GET /rdp/plans ===")
-    
-    headers = {"X-API-Key": API_KEY}
-    status, data = make_request("GET", "/rdp/plans?region=EU", headers=headers)
-    
-    if status != 200:
-        log_test("Regression: GET /rdp/plans - Status Code", False,
-                f"Expected 200, got {status}. Response: {json.dumps(data, indent=2)}")
-        return
-    
-    log_test("Regression: GET /rdp/plans - Status Code", True, f"Got 200")
-    
-    # Check response structure
-    if "product" not in data or "plans" not in data:
-        log_test("Regression: GET /rdp/plans - Response Structure", False,
-                f"Missing 'product' or 'plans' field. Response keys: {list(data.keys())}")
-        return
-    
-    log_test("Regression: GET /rdp/plans - Response Structure", True,
-            f"Has 'product' and 'plans' fields")
-    
-    # Check product is rdp
-    if data.get("product") != "rdp":
-        log_test("Regression: GET /rdp/plans - Product Field", False,
-                f"Expected product='rdp', got '{data.get('product')}'")
-    else:
-        log_test("Regression: GET /rdp/plans - Product Field", True,
-                f"product='rdp'")
-    
-    # Check plans is an array
-    if not isinstance(data.get("plans"), list):
-        log_test("Regression: GET /rdp/plans - Plans Array", False,
-                f"plans is not an array, got {type(data.get('plans'))}")
-    else:
-        log_test("Regression: GET /rdp/plans - Plans Array", True,
-                f"plans is an array with {len(data.get('plans', []))} items")
-
-
-def test_regression_get_account():
-    """Regression: GET /account"""
-    print("\n=== TEST REGRESSION: GET /account ===")
-    
-    headers = {"X-API-Key": API_KEY}
-    status, data = make_request("GET", "/account", headers=headers)
-    
-    if status != 200:
-        log_test("Regression: GET /account - Status Code", False,
-                f"Expected 200, got {status}. Response: {json.dumps(data, indent=2)}")
-        return
-    
-    log_test("Regression: GET /account - Status Code", True, f"Got 200")
-    
-    # Just check we got a valid response (structure may vary)
-    if not isinstance(data, dict):
-        log_test("Regression: GET /account - Response Type", False,
-                f"Response is not a dict, got {type(data)}")
-    else:
-        log_test("Regression: GET /account - Response Type", True,
-                f"Response is a valid dict with keys: {list(data.keys())[:5]}")
-
-
-def test_auth_bearer_header():
-    """Test Authorization: Bearer header (alternative to X-API-Key)"""
-    print("\n=== TEST AUTH: Bearer Header ===")
-    
-    headers = {"Authorization": f"Bearer {API_KEY}"}
-    status, data = make_request("GET", f"/rdp/{TEST_RDP_ID}", headers=headers)
-    
-    if status != 200:
-        log_test("Auth: Bearer Header - Status Code", False,
-                f"Expected 200, got {status}. Response: {json.dumps(data, indent=2)}")
-        return
-    
-    log_test("Auth: Bearer Header - Status Code", True,
-            f"Got 200 (Bearer auth works)")
+    # Test 3: Bearer auth header works
+    try:
+        response = requests.get(f"{BASE_URL}/domains", headers=HEADERS_BEARER, timeout=10)
+        
+        log_test(
+            "AUTH.5: GET /domains with Authorization: Bearer header returns 200",
+            response.status_code == 200,
+            f"Status: {response.status_code}",
+            None
+        )
+    except Exception as e:
+        log_test("AUTH.5: Bearer auth", False, f"Exception: {str(e)}")
 
 
 def print_summary():
     """Print test summary"""
-    print("\n" + "="*70)
-    print("TEST SUMMARY")
-    print("="*70)
-    print(f"Total Tests: {tests_passed + tests_failed}")
-    print(f"✅ Passed: {tests_passed}")
-    print(f"❌ Failed: {tests_failed}")
-    print(f"Pass Rate: {tests_passed / (tests_passed + tests_failed) * 100:.1f}%")
-    print("="*70)
+    print("\n" + "="*80)
+    print("★★★ TEST SUMMARY ★★★")
+    print("="*80)
+    print(f"Total Tests: {total_tests}")
+    print(f"Passed: {passed_tests} ({passed_tests/total_tests*100:.1f}%)")
+    print(f"Failed: {failed_tests} ({failed_tests/total_tests*100:.1f}%)")
+    print("="*80)
     
-    if tests_failed > 0:
+    if failed_tests > 0:
         print("\n❌ FAILED TESTS:")
         for result in test_results:
-            if not result["passed"]:
-                print(f"  - {result['test']}")
-                if result["details"]:
-                    print(f"    {result['details']}")
+            if "❌" in result["status"]:
+                print(f"  - {result['test']}: {result['details']}")
     
-    return tests_failed == 0
+    print("\n" + "="*80)
+    print("★★★ DETAILED RESULTS BY GAP ★★★")
+    print("="*80)
+    
+    # Group by GAP
+    gaps = {
+        "GAP5": [],
+        "GAP4": [],
+        "GAP7": [],
+        "GAP6": [],
+        "GAP2": [],
+        "CHANGE-PRIMARY": [],
+        "AUTH": []
+    }
+    
+    for result in test_results:
+        for gap in gaps.keys():
+            if result["test"].startswith(gap):
+                gaps[gap].append(result)
+                break
+    
+    for gap, results in gaps.items():
+        if results:
+            passed = sum(1 for r in results if "✅" in r["status"])
+            total = len(results)
+            print(f"\n{gap}: {passed}/{total} tests passed")
+            for result in results:
+                print(f"  {result['status']}: {result['test']}")
 
 
 def main():
     """Run all tests"""
-    print("="*70)
-    print("DigitalOcean RDP Reseller API Test Suite")
-    print("="*70)
+    print("="*80)
+    print("RESELLER API GAP FIXES - COMPREHENSIVE BACKEND TEST")
+    print("="*80)
     print(f"Base URL: {BASE_URL}")
-    print(f"Test RDP ID: {TEST_RDP_ID}")
+    print(f"API Key: {API_KEY}")
     print(f"Environment: DEV SANDBOX (dry_run mode)")
-    print("="*70)
+    print("="*80)
     
-    # Run all tests
-    test_d1_password_reset()
-    test_d2a_reinstall_ws2019()
-    test_d2b_reinstall_invalid_os()
-    test_d2c_reinstall_empty_body()
-    test_d3_get_rdp_with_agent_online()
-    test_auth_missing_key()
-    test_not_found_password_reset()
-    test_not_found_reinstall()
-    test_regression_get_rdp_list()
-    test_regression_get_rdp_plans()
-    test_regression_get_account()
-    test_auth_bearer_header()
+    # Run all test groups
+    test_gap5_domains_nameservers()
+    test_gap4_hosting_gapacct2_details()
+    test_gap7_hosting_gapacct1_suspended_override()
+    test_gap6_delete_hosting_honest_dryrun()
+    test_gap2_dns_apex_name_normalization()
+    test_change_primary_endpoint()
+    test_auth_negative()
     
     # Print summary
-    all_passed = print_summary()
+    print_summary()
     
-    sys.exit(0 if all_passed else 1)
+    # Exit with appropriate code
+    sys.exit(0 if failed_tests == 0 else 1)
 
 
 if __name__ == "__main__":

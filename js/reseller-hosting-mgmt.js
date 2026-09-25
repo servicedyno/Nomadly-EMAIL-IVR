@@ -454,7 +454,15 @@ function registerHostingMgmtRoutes(deps) {
   router.get('/hosting/:user/domains', apiKeyAuth, h(async (req, res) => {
     const acct = await loadOwned(req, res); if (!acct) return
     const ctx = withCreds(res, acct); if (!ctx) return
-    res.json(await cpProxy.listDomains(ctx.cpUser, ctx.cpPass, ctx.whmHost))
+    // GAP-3 FIX (2026-09): give the domains list the SAME WHM-root impersonation self-heal that
+    // File-Manager / SSL already use, so a stale/absent cpPass no longer returns CPANEL_AUTH_FAILURE
+    // on an active account. (A SUSPENDED account still can't be sessioned into — that's expected.)
+    const result = await withCpAuthFallback(
+      cpProxy.listDomains(ctx.cpUser, ctx.cpPass, ctx.whmHost),
+      () => cpProxy.uapiViaWhmRoot(ctx.cpUser, 'DomainInfo', 'list_domains', {}, ctx.whmHost),
+      'domains.list'
+    )
+    return sendCp(res, result)
   }))
 
   router.post('/hosting/:user/domains/docroot', apiKeyAuth, h(async (req, res) => {
@@ -463,7 +471,14 @@ function registerHostingMgmtRoutes(deps) {
     if (missing(res, ['subdomain', subdomain], ['rootdomain', rootdomain], ['dir', dir])) return
     if (!isLive()) return dryRun(res, acct, 'domain.docroot', { subdomain, rootdomain, dir })
     const ctx = withCreds(res, acct); if (!ctx) return
-    res.json(await cpProxy.changeDomainDocRoot(ctx.cpUser, ctx.cpPass, subdomain, rootdomain, dir, ctx.whmHost))
+    // GAP-3 FIX (2026-09): docroot change is API2 (SubDomain::changedocroot) — add the api2 WHM-root
+    // fallback so a stale cpPass self-heals instead of hard-failing with CPANEL_AUTH_FAILURE.
+    const result = await withCpAuthFallback(
+      cpProxy.changeDomainDocRoot(ctx.cpUser, ctx.cpPass, subdomain, rootdomain, dir, ctx.whmHost),
+      () => cpProxy.api2ViaWhmRoot(ctx.cpUser, 'SubDomain', 'changedocroot', { subdomain, rootdomain, dir }, ctx.whmHost),
+      'domain.docroot'
+    )
+    return sendCp(res, result)
   }))
 
   router.delete('/hosting/:user/domains/addon', apiKeyAuth, h(async (req, res) => {
@@ -1236,9 +1251,100 @@ function registerHostingMgmtRoutes(deps) {
     res.json({ success: true, oldDomain, newDomain, domain: newDomain })
   }))
 
-  // ════════════════════════════════════════════════════════
-  // DOMAINS — nameserver / Cloudflare zone status (read-only)
-  // ════════════════════════════════════════════════════════
+  // ── First-class WHM-level "change / replace primary domain" (mirrors the proven bot flow) ──
+  // Unlike set-primary (which requires the target to already be an addon), this accepts any domain
+  // the reseller owns and swaps it in at the WHM level (modifyacct domain=), so a plan's primary can
+  // be corrected WITHOUT a cPanel session and WITHOUT terminate+recreate. Adds the same
+  // whm-userdata-heal self-heal the bot uses, and re-points Cloudflare/anti-red in the background.
+  router.post('/hosting/:user/change-primary', apiKeyAuth, h(async (req, res) => {
+    const acct = await loadOwned(req, res); if (!acct) return
+    const newDomain = String((req.body && req.body.domain) || '').toLowerCase().trim()
+    if (!newDomain || !newDomain.includes('.')) return res.status(400).json({ error: 'invalid_domain', message: 'A valid { "domain": "example.com" } is required.' })
+    const oldDomain = String(acct.domain || '').toLowerCase()
+    if (newDomain === oldDomain) return res.status(400).json({ error: 'already_primary', message: 'That domain is already the primary domain for this plan.' })
+    const db = getDb()
+    try {
+      if (db) {
+        // Refuse if the target is the primary or an addon of a DIFFERENT (non-deleted) plan.
+        const onOther = await db.collection('cpanelAccounts').findOne({
+          $or: [{ domain: newDomain }, { addonDomains: newDomain }, { 'addonDomains.domain': newDomain }],
+          deleted: { $ne: true }, _id: { $ne: acct._id },
+        })
+        if (onOther) return res.status(409).json({ error: 'domain_on_other_plan', message: `${newDomain} is already attached to another hosting plan — detach it there first.` })
+        const blocked = await db.collection('blockedDomains').findOne({ domain: newDomain })
+        if (blocked) return res.status(403).json({ error: 'blocked_domain', message: `${newDomain} is blocked and cannot be used.` })
+      }
+    } catch (_) { /* guard best-effort */ }
+    if (!isLive()) return dryRun(res, acct, 'domain.change-primary', { from: oldDomain, to: newDomain })
+
+    const whmHost = acct.whmHost || process.env.WHM_HOST
+    const cpUser = acct.cpUser || acct._id
+    const ctx = ctxFromAccount(acct)
+
+    // A domain can't be both an addon and the primary on the same account — detach it first
+    // (best-effort; never blocks the WHM swap below).
+    if (ctx.cpAddonDomains.map(d => d.toLowerCase()).includes(newDomain)) {
+      try {
+        if (ctx.cpPass) {
+          const rm = await cpProxy.removeAddonDomain(cpUser, ctx.cpPass, newDomain, undefined, oldDomain, whmHost).catch(() => null)
+          if (rm && rm.code === 'CPANEL_DOWN') return res.status(503).json({ error: 'cpanel_down', message: 'WHM control plane unreachable. Retry shortly.' })
+        }
+        await col('cpanelAccounts').updateOne({ _id: acct._id }, { $pull: { addonDomains: { domain: newDomain } } }).catch(() => {})
+        await col('cpanelAccounts').updateOne({ _id: acct._id }, { $pull: { addonDomains: newDomain } }).catch(() => {})
+      } catch (e) { log && log(`[Reseller] change-primary addon pre-removal warning: ${e.message}`) }
+    }
+
+    // Swap primary at the WHM level (no cPanel session needed).
+    let result
+    try { result = await whmService.changePrimaryDomain(cpUser, newDomain) }
+    catch (e) { result = { success: false, error: e.message } }
+
+    // Self-heal "domain already exists in the userdata" (stale row from a prior deleted account),
+    // then retry once — identical to the bot's ChangePrimary path.
+    if (!result || !result.success) {
+      try {
+        const heal = require('./whm-userdata-heal')
+        if (heal.isStaleUserdataError(String(result?.error || ''))) {
+          const release = await heal.attemptUserdataRelease({ db, whmService, domain: newDomain, chatId: String(acct.chatId || '') })
+          if (release && release.released) {
+            try { result = await whmService.changePrimaryDomain(cpUser, newDomain) }
+            catch (e) { result = { success: false, error: e.message } }
+          }
+        }
+      } catch (healErr) { log && log(`[Reseller] change-primary self-heal warning: ${healErr.message}`) }
+    }
+
+    if (!result || !result.success) {
+      return res.status(502).json({ error: 'change_primary_failed', message: result?.error || 'WHM refused to change the primary domain.' })
+    }
+
+    // Persist the swap.
+    try {
+      await col('cpanelAccounts').updateOne(
+        { _id: acct._id },
+        { $set: { domain: newDomain, primaryChangedAt: new Date().toISOString(), previousPrimaryDomain: oldDomain },
+          $pull: { addonDomains: { domain: newDomain } } }
+      )
+      await col('cpanelAccounts').updateOne({ _id: acct._id }, { $pull: { addonDomains: newDomain } }).catch(() => {})
+    } catch (e) { log && log(`[Reseller] change-primary DB update warning: ${e.message}`) }
+
+    // Background: re-point Cloudflare + anti-red for the NEW primary; strip the OLD domain's hosting DNS.
+    ;(async () => {
+      try {
+        const fresh = (await col('cpanelAccounts').findOne({ _id: acct._id })) || acct
+        await addonFlow.runDnsAndProtection({ domain: newDomain, cpUser, whmHost, account: fresh, db, bot: null, lang: 'en' })
+      } catch (e) { log && log(`[Reseller] change-primary DNS/protection warning: ${e.message}`) }
+      try {
+        const zone = await cfService.getZoneByName(oldDomain)
+        if (zone) {
+          await antiRed.removeWorkerRoutes(oldDomain, zone.id).catch(() => {})
+          await cfService.cleanupAllHostingRecords(zone.id, oldDomain).catch(() => {})
+        }
+      } catch (e) { log && log(`[Reseller] change-primary old-domain cleanup warning: ${e.message}`) }
+    })()
+
+    res.json({ success: true, username: acct._id, oldDomain, newDomain, domain: newDomain, note: 'Primary domain changed at WHM. Cloudflare + anti-red re-point runs in the background (~30-60s).' })
+  }))
   router.get('/hosting/:user/domains/ns-status', apiKeyAuth, h(async (req, res) => {
     const acct = await loadOwned(req, res); if (!acct) return
     const domain = req.query.domain

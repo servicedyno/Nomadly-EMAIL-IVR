@@ -514,6 +514,10 @@ function createStoreRoutes(deps = {}) {
     const info = {
       _id: webUserId, website_name: domain, plan: planName, email: email || null,
       userLanguage: 'en', price: total, hostingPrice, registrar: registrar || null, source: 'web',
+      // GAP-1 FIX (2026-09): match the bot — set Cloudflare NS so registerDomainAndCreateCpanel
+      // creates the web DNS (root+www CNAME → tunnel). Without this the CF zone was left with only
+      // NS records and the customer's site never resolved after a web-store purchase.
+      nameserver: 'cloudflare', nsChoice: 'cloudflare',
     }
     if (domainMode === 'byo') { info.existingDomain = true; info.connectExternalDomain = true }
     let result
@@ -869,6 +873,10 @@ function createStoreRoutes(deps = {}) {
         domainPrice,
         registrar,
         source: 'web',
+        // GAP-1 FIX (2026-09): Cloudflare NS so the web DNS (root+www CNAME → tunnel) is created,
+        // matching the bot. Omitting it left the CF zone with only NS records → site never resolved.
+        nameserver: 'cloudflare',
+        nsChoice: 'cloudflare',
       }
       if (domainMode === 'byo') { info.existingDomain = true; info.connectExternalDomain = true }
 

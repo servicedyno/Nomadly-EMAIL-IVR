@@ -58,3 +58,9 @@
 - Sim user chat_id `777000123`: onboarded (English), wallet `walletOf._id="777000123"` seeded usdIn=500.
 - Vault `.env` restores `VPS_RDP_PROVIDER="azure"`; production uses `digitalocean-rdp` (2026-09-23). Set `digitalocean-rdp` locally only if you need the bot's DO-RDP order flow.
 - 2026-09-24 pod: fresh setup done via vault unlock + `scripts/setup-nodejs.sh`; frontend/.env recreated with the current pod URL. `TELEGRAM_API_BASE_URL` mock harness is NOT set in the vault .env (add it manually before driving the bot in a sim).
+
+## Reseller API — GAP-FIX test key (2026-09-25, sandbox, local Mongo `test`)
+- `X-API-Key: nmdly_test_reseller_gapfix` (owner `gapfix-owner`)
+- Stood up by `node js/ops/reseller_test_server.js` (standalone reseller router on :5000, external
+  providers stubbed, isLive()=false). Seeds domainsOf/registeredDomains/cpanelAccounts for the owner.
+- Base: `${REACT_APP_BACKEND_URL}/api/reseller/v1`. Used to verify the 7 gap fixes + change-primary.
