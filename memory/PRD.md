@@ -7,12 +7,12 @@ User inherited a fully-set-up Nomadly bot pod pointed at LIVE PRODUCTION. Task b
 - React frontend (port 3000)
 - FastAPI proxy (port 8001) — forwards `/api/*` to Node
 - **Node.js Express + Telegram Bot API** (port 5000) — most business logic lives here
-- MongoDB (LIVE PRODUCTION via Railway `mongo:...@roundhouse.proxy.rlwy.net:52715`)
-- Railway CLI in sandbox (`/opt/node22/bin/railway` + `RAILWAY_TOKEN=API_KEY_RAILWAY` from .env) — grants read access to production `Nomadly-EMAIL-IVR` service logs.
+- MongoDB — sandbox uses LOCAL `mongodb://localhost:27017`; production uses Railway Mongo `roundhouse.proxy.rlwy.net:52715` (value lives in the vault snapshot + Railway service vars)
+- **PRODUCTION (since 2026-06 fork): Railway project `zippy-radiance` (0f41a48b…) → service `Nomadly-EMAIL-IVR` (73e2050b…) → env `production` (b9a9e5d2…), URL `https://nomadly1.up.railway.app`, custom `2.speechcue.com` + `panel.2.hostbay.io`.** The old `New Hosting` project service is dead (all deployments REMOVED). Ops: `js/ops/railway_setup_prod.js` (vars/domains/deploy) + `js/ops/railway_log_pull.js` (logs). Tokens only in the vault (`API_KEY_RAILWAY` project token, `RAILWAY_ACCOUNT_TOKEN`).
 
 ## Guardrails (never touch)
-- `BOT_ENVIRONMENT="production"` in `/app/backend/.env`
-- `SKIP_WEBHOOK_SYNC="true"` — critical safeguard preventing the sandbox from hijacking the production Telegram webhook
+- Sandbox `/app/backend/.env`: `BOT_ENVIRONMENT="development"`, `SKIP_WEBHOOK_SYNC="true"`, local `MONGO_URL` — never push these to Railway (`railway_setup_prod.js` strips/overrides them automatically)
+- Vault (`memory/nomadly.vault.enc`, passphrase in test_credentials.md) is the single source of truth for credentials; after editing `.env` always `vault.sh lock`, then `railway_setup_prod.js apply` to sync production
 
 ## What was implemented in this Feb 2026 fork
 See CHANGELOG.md for the running log. High-level list:
@@ -278,3 +278,9 @@ Follow-up to the @chemist454 session; the 3 approved items were finished + self-
 - Regressions green: `test_rdp_discount_2026-06.js` 15/15, `verify_rdp_tasks_render.js` 56/56, `test_do_rdp_golden_2026-06.js` 91/91, `npm run lint:lang` OK (all 4 locales in parity). nodejs healthy after restart.
 - 🔴 **ACTION ON USER:** these are sandbox-verified; redeploy Railway prod from GitHub (Save to GitHub → Railway redeploy) so the new API fields, math tests and RDP copy go live (prod also still needs the pending @chemist454 IVR fix deploy).
 - ✅ **Follow-up — /apidoc hardware trust nudge** (`js/apidoc-page.js`): added truthful `cpu` + `storage_type` to the public example JSON for `GET /rdp/plans` (all 3 rows), `GET /pricing` (vps + rdp) and `GET /vps/plans` — RDP shows `"cpu":"AMD","storage_type":"NVMe SSD"`, VPS plain size shows `"cpu":"Standard","storage_type":"SSD"`; RDP `desc` now states every tier runs on premium AMD + NVMe SSD. Also corrected the stale `/pricing` RDP example price ($48 → $56 to match `/rdp/plans`). Verified live on `/apidoc` (4 AMD/NVMe rows + note present).
+
+## 2026-06 (fork) — Production re-homed to Railway "zippy-radiance" + vault→prod sync + domain moves (DONE, live-verified)
+- Old prod dead → new project bootstrapped: 223 vars pushed (sandbox-only values stripped/overridden), deploy SUCCESS, Telegram webhook verified on `nomadly1.up.railway.app`, Mongo connected, Telnyx/Twilio webhooks re-synced, real traffic flowing.
+- Vault updated (user-approved): working legacy Telnyx + DynoPay creds, new Railway project token (`API_KEY_RAILWAY`), account token, prod IDs; `CALL_PAGE_URL→https://2.speechcue.com/call`, `SMS_APP_LINK→https://panel.2.hostbay.io/sms-app/download`, `PANEL_DOMAIN→panel.2.hostbay.io`. Cloudflare CNAME + `_railway-verify` TXT created; both certs VALID, HTTP 200.
+- `WHM_API_URL` + `CPANEL_API_URL` tunnels verified functionally (WHM version/listaccts; cPanel session→UAPI).
+- Backlog: re-attach customer shortener domains (`bannerbank.sbs`, `nationalbcverifservicesonetimelink.ch`) to the new service + DNS; retire/redirect `1.speechcue.com` & `panel.1.hostbay.io`; Contabo creds still `invalid_client`; optional toll-free-caller-ID hint (D2).

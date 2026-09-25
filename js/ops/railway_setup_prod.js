@@ -30,7 +30,7 @@ const ENDPOINT = 'https://backboard.railway.com/graphql/v2'
 const SANDBOX_ONLY = new Set(['SKIP_WEBHOOK_SYNC', 'API_KEY_RAILWAY_NEW_HOSTING'])
 const PROD_FIXED = { BOT_ENVIRONMENT: 'production', VPS_RDP_PROVIDER: 'digitalocean-rdp', HIDE_SMS_APP: 'true' }
 const FROM_LEGACY = ['MONGO_URL', 'RESELLER_API_LIVE', 'MARKETPLACE_ACCESS_FEE_USD', 'CPANEL_SELFHEAL_WRITES', 'CPPASS_ROTATION_COOLDOWN_MIN']
-const LEGACY_CUSTOM_DOMAINS = ['1.speechcue.com', 'panel.1.hostbay.io', 'bannerbank.sbs', 'nationalbcverifservicesonetimelink.ch']
+const LEGACY_CUSTOM_DOMAINS = ['2.speechcue.com', 'panel.2.hostbay.io']
 
 function arg(name, def) { const i = process.argv.indexOf('--' + name); return i > -1 ? process.argv[i + 1] : def }
 const has = name => process.argv.includes('--' + name)
@@ -207,14 +207,18 @@ async function cmdDomains() {
   const wanted = (arg('only', '') ? arg('only').split(',') : LEGACY_CUSTOM_DOMAINS).map(s => s.trim()).filter(Boolean)
   for (const domain of wanted) {
     if (existing.has(domain)) { console.log(`= ${domain} already attached`); continue }
-    const r = await gql(`mutation($i:CustomDomainCreateInput!){ customDomainCreate(input:$i){ id domain status{ dnsRecords{ hostlabel requiredValue currentValue status recordType } } } }`,
+    const r = await gql(`mutation($i:CustomDomainCreateInput!){ customDomainCreate(input:$i){ id domain } }`,
       { i: { domain, environmentId: ENVIRON, projectId: PROJECT, serviceId: SERVICE } })
     if (r.errors) { console.log(`✗ ${domain}: ${r.errors[0].message}`); continue }
     console.log(`+ ${domain} attached`)
   }
-  const after = await serviceInstance()
-  for (const c of after.domains.customDomains || []) {
-    for (const rec of (c.status && c.status.dnsRecords) || []) console.log(`  DNS ${c.domain}: ${rec.recordType} ${rec.hostlabel || '@'} → ${rec.requiredValue}  (current=${rec.currentValue || '-'} ${rec.status})`)
+  const d = await must(`query($p:String!,$s:String!,$e:String!){ domains(projectId:$p, serviceId:$s, environmentId:$e){ customDomains{ domain status{ certificateStatus dnsRecords{ hostlabel requiredValue currentValue status recordType zone } verificationDnsHost verificationToken } } } }`,
+    { p: PROJECT, s: SERVICE, e: ENVIRON }, 'domains')
+  for (const c of d.domains.customDomains || []) {
+    const st = c.status || {}
+    console.log(`${c.domain}: cert=${(st.certificateStatus || '').replace('CERTIFICATE_STATUS_TYPE_', '')}`)
+    for (const rec of st.dnsRecords || []) console.log(`  ${rec.recordType.replace('DNS_RECORD_TYPE_', '')} ${rec.hostlabel || '@'}.${rec.zone} → ${rec.requiredValue}  (current=${rec.currentValue || '-'} ${rec.status.replace('DNS_RECORD_STATUS_', '')})`)
+    if (st.verificationDnsHost) console.log(`  TXT ${st.verificationDnsHost} → ${st.verificationToken}`)
   }
 }
 

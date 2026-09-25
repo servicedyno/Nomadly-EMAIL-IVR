@@ -4,7 +4,7 @@
 - Vault file: `memory/nomadly.vault.enc`
 - Unlock: `VAULT_PASSWORD='Katiekendra123@' bash scripts/vault.sh unlock`
 - Vault password: `Katiekendra123@`
-- Unlocking restores `/app/backend/.env` (all app/API credentials) and refreshes the `/app/.env` symlink.
+- Unlocking restores `/app/backend/.env` (all app/API credentials) (never creates a root `/app/.env`).
 
 ## Environment mode (this preview pod)
 - Configured as DEVELOPMENT sandbox: `BOT_ENVIRONMENT=development`, `SKIP_WEBHOOK_SYNC=true`
@@ -24,6 +24,13 @@
   restore the prod `MONGO_URL` line and restart `backend` + `nodejs`. Before doing so, gate every
   outbound/mutating startup job behind `SKIP_WEBHOOK_SYNC=true`, otherwise real calls/emails/renewals
   will fire again.
+
+## Railway PRODUCTION (2026-06 fork — bot re-homed to a new project)
+- Project **zippy-radiance** `0f41a48b-d2f6-4be5-acbd-524c6df6d2c6` · service **Nomadly-EMAIL-IVR** `73e2050b-586d-41d4-a1b5-6b0914e7a0f9` · env **production** `b9a9e5d2-0f71-42c4-925b-ac843adcb656`
+- Public URL: `https://nomadly1.up.railway.app` (SELF_URL / SELF_URL_PROD). Custom: `2.speechcue.com`, `panel.2.hostbay.io`
+- Tokens live ONLY in the vault (`backend/.env` after unlock): `API_KEY_RAILWAY` = project token (runtime + ops), `RAILWAY_ACCOUNT_TOKEN` = account token (ops only, never pushed), `API_KEY_RAILWAY_NEW_HOSTING` = legacy "New Hosting" project token (read-only history), `RAILWAY_PROD_*` = the IDs above.
+- Ops tool: `VAULT_PASSWORD=… node js/ops/railway_setup_prod.js inspect|plan|apply|verify|deploy|domains|status`
+- Legacy prod config snapshot (236 vars, dead "New Hosting" service): `memory/railway_newhosting_prod_vars.enc` (same vault passphrase).
 
 ## Frontend env (recreated during setup)
 - `/app/frontend/.env` present with:
