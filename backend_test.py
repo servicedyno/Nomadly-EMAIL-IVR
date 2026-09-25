@@ -10,7 +10,7 @@ import sys
 from typing import Dict, Any, Optional
 
 # Configuration
-BASE_URL = "https://lifecycle-hub-35.preview.emergentagent.com/api/reseller/v1"
+BASE_URL = "https://reseller-blockers.preview.emergentagent.com/api/reseller/v1"
 API_KEY = "nmdly_e2e_51573577f5db956c5c0cb039"
 TEST_RDP_ID = "e2e-rdp-1"
 

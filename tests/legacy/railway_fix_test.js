@@ -153,7 +153,7 @@ async function testNodeJSHealth() {
     
     // Test backend API health if reachable
     try {
-      const backendUrl = 'https://lifecycle-hub-35.preview.emergentagent.com/api/health'
+      const backendUrl = 'https://reseller-blockers.preview.emergentagent.com/api/health'
       const response = await axios.get(backendUrl, { timeout: 10000 })
       
       if (response.status === 200) {

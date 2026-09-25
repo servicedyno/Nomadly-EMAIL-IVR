@@ -13,7 +13,7 @@ import time
 import sys
 
 # Base URL from frontend/.env
-BASE_URL = "https://lifecycle-hub-35.preview.emergentagent.com"
+BASE_URL = "https://reseller-blockers.preview.emergentagent.com"
 
 # Test credentials
 USERNAME = "nbayftest"
