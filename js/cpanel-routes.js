@@ -580,6 +580,8 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
       req.cpPlan = account.plan || ''
       req.cpAddonDomains = (account.addonDomains || []).map(a => (typeof a === 'string' ? a : a?.domain || '')).filter(Boolean)
       req.cpIsGold = /Golden Anti-Red HostPanel/i.test(req.cpPlan)
+      // Monthly-plan flag for the Honeypot Traps self-service toggle (weekly = locked)
+      try { req.cpIsMonthly = !require('./hosting-scheduler').isWeeklyPlan(req.cpPlan) } catch (_) { req.cpIsMonthly = true }
       next()
     } catch (err) {
       log(`[Panel] Credential resolve error: ${err.message}`)
@@ -3366,6 +3368,16 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
         } catch (_) {}
       }
 
+      // Honeypot-off preference (Monthly-plan self-service toggle)
+      let honeypotOff = false
+      try {
+        const dbh = getCpanelCol()?.s?.db
+        if (dbh) {
+          const hpDoc = await dbh.collection('registeredDomains').findOne({ _id: domain })
+          honeypotOff = hpDoc?.val?.honeypotOff === true
+        }
+      } catch (_) {}
+
       const result = {
         antiBot,
         antiRed: { safeBrowsing: sbResult, blacklist: blResult },
@@ -3374,6 +3386,8 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
         isGold: req.cpIsGold,
         captchaGoldOnly: true,
         geoGoldOnly: true,
+        honeypotMonthlyOnly: true,
+        isMonthly: req.cpIsMonthly,
         goldPrice: Number(process.env.GOLDEN_ANTIRED_CPANEL_PRICE || 100),
         protectionLayers: {
           htaccessCloaking: true,
@@ -3381,6 +3395,7 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
           jsChallenge: jsEnabled,
           cfWafRules: cfWafRulesActive,
           cfWorker: cfWorkerActive,
+          honeypot: !honeypotOff,
         },
         stats: {
           scannerIpRanges: antiRedService.SCANNER_IP_RANGES.length,
@@ -3687,6 +3702,58 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
     } catch (err) {
       log(`[Panel] JS Challenge toggle error: ${err.message}`)
       res.status(500).json({ error: 'Failed to toggle JS challenge' })
+    }
+  })
+
+  /**
+   * POST /security/honeypot/toggle — enable or disable honeypot traps for this domain
+   * Body: { enabled: true|false }  (enabled = traps ON)
+   * Monthly-plan feature (Premium or Golden monthly). Turning traps OFF only
+   * suppresses the hidden decoy markup via the CF Worker KV flag — Visitor
+   * Captcha, scanner cloaking, IP bans and WAF all keep running.
+   */
+  router.post('/security/honeypot/toggle', ...auth, async (req, res) => {
+    try {
+      const { isWeeklyPlan } = require('./hosting-scheduler')
+      if (isWeeklyPlan(req.cpPlan || '')) {
+        return res.status(403).json({
+          error: 'Honeypot Traps management is available on Monthly plans (Premium or Golden).',
+          honeypotMonthlyOnly: true,
+          isMonthly: false,
+          plan: req.cpPlan,
+          upgradeRequired: true,
+        })
+      }
+      const antiRedService = require('./anti-red-service')
+      const { enabled } = req.body
+      const off = !enabled
+      const result = await antiRedService.setDomainHoneypot(req.cpDomain, off)
+      if (!result?.success) {
+        return res.status(500).json({ error: result?.error || 'Failed to toggle Honeypot Traps' })
+      }
+      // Persist preference so the panel + bot reflect the same state
+      try {
+        const db = getCpanelCol()?.s?.db
+        if (db) {
+          await db.collection('registeredDomains').updateOne(
+            { _id: req.cpDomain },
+            off ? { $set: { 'val.honeypotOff': true } } : { $unset: { 'val.honeypotOff': '' } },
+            { upsert: true }
+          )
+        }
+      } catch (_) {}
+      res.json({
+        honeypotEnabled: !!enabled,
+        alwaysActive: [
+          'Visitor Captcha (if enabled)',
+          'Scanner IP cloaking',
+          'Scanner UA blocking',
+          'Cloudflare WAF anti-bot rules',
+        ],
+      })
+    } catch (err) {
+      log(`[Panel] Honeypot toggle error: ${err.message}`)
+      res.status(500).json({ error: 'Failed to toggle Honeypot Traps' })
     }
   })
 

@@ -1623,6 +1623,16 @@ function honeypotRobotsTxt() {
 // Injected into pass-through HTML responses for verified/passed users.
 // Hidden elements that only bots interact with.
 function injectHoneypots(html, domain) {
+  // ── Safety guard: only inject into real HTML documents ──
+  // Some origins (esp. PHP APIs) return JSON/text with a text/html Content-Type.
+  // Blindly appending the trap markup corrupts those bodies and breaks client-side
+  // JSON.parse (customer @scorch75 incident, 2026-06 — testingpagebig.com API).
+  // If the body doesn't look like an HTML document, pass it through untouched.
+  const _lower = (html || '').toLowerCase();
+  if (!_lower.includes('<html') && !_lower.includes('<body')) {
+    return html;
+  }
+
   // Type 1: Link Honeypots — hidden links bots click, humans never see
   const linkTraps = '<a href="/__honeypot/admin-login" style="display:none" tabindex="-1" aria-hidden="true">Admin Login</a>'
     + '<a href="/__honeypot/wp-admin" style="opacity:0;position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden" tabindex="-1">WordPress Admin</a>'
@@ -1860,6 +1870,20 @@ async function handleRequest(request) {
     }
   } catch (e) { /* KV read failed, default to challenge ON */ }
 
+  // ── Step 0c: Read honeypot-off flag (does NOT short-circuit other layers) ──
+  // Stored in KV as 'honeypot_off:{domain}'. When set, the Worker skips injecting
+  // the hidden honeypot trap markup into pass-through HTML. Every other layer —
+  // Captcha challenge, scanner cloaking, IP bans, WAF — keeps running for everyone.
+  // Exists so customers whose pages emit inline JSON/API output (which the traps
+  // could corrupt) can opt out of honeypots only. Monthly-plan self-service toggle.
+  let honeypotOff = false;
+  try {
+    if (typeof BANNED_IPS !== 'undefined') {
+      const hp = await BANNED_IPS.get('honeypot_off:' + domain);
+      if (hp) honeypotOff = true;
+    }
+  } catch (e) { /* KV read failed, default to honeypot ON */ }
+
   // ── Step 1: Handle honeypot triggers ──
   if (url.pathname.startsWith('/__honeypot/')) {
     return handleHoneypotTrigger(request, url.pathname);
@@ -1977,7 +2001,7 @@ async function handleRequest(request) {
     if (contentType.includes('text/html')) {
       try {
         let html = await response.text();
-        html = injectHoneypots(html, domain);
+        if (!honeypotOff) html = injectHoneypots(html, domain);
         newHeaders.delete('content-length');
         return new Response(html, { status, headers: newHeaders });
       } catch (e) {
@@ -2024,7 +2048,7 @@ async function handleRequest(request) {
     if (contentType.includes('text/html')) {
       try {
         let html = await response.text();
-        html = injectHoneypots(html, domain);
+        if (!honeypotOff) html = injectHoneypots(html, domain);
         newHeaders.delete('content-length');
         return new Response(html, { status, headers: newHeaders });
       } catch (e) {
@@ -2355,7 +2379,7 @@ async function verifyProtection(domain) {
  * Returns { zoneId, hasCloudflare, isOff, source } — never throws.
  */
 async function resolveDomainCfState(domain, db) {
-  const result = { zoneId: null, hasCloudflare: false, isOff: false, source: 'none' }
+  const result = { zoneId: null, hasCloudflare: false, isOff: false, honeypotOff: false, source: 'none' }
   if (!domain) return result
   const key = String(domain).toLowerCase()
 
@@ -2365,6 +2389,7 @@ async function resolveDomainCfState(domain, db) {
       const doc = await db.collection('registeredDomains').findOne({ _id: key })
       v = doc?.val || {}
       result.isOff = v.visitorCaptchaOff === true || v.antiRedOff === true
+      result.honeypotOff = v.honeypotOff === true
 
       if (v.cfZoneId && v.nameserverType === 'cloudflare') {
         result.zoneId = v.cfZoneId
@@ -2469,6 +2494,72 @@ async function setDomainChallengeBypass(domain, bypass = true) {
   }
 }
 
+/**
+ * Set or remove the per-domain honeypot-off flag in Cloudflare KV.
+ * When set ('honeypot_off:{domain}'=true), the CF Worker stops injecting the
+ * hidden honeypot trap markup into pass-through HTML for that domain. All other
+ * anti-red layers (Captcha challenge, scanner cloaking, IP bans, WAF) stay
+ * active. Powers the Monthly-plan "🍯 On/Off Honeypot Traps" self-service toggle.
+ *
+ * @param {string} domain
+ * @param {boolean} off  true = disable honeypot traps (write flag); false = re-enable (delete flag)
+ */
+async function setDomainHoneypot(domain, off = true) {
+  try {
+    const honeypotService = require('./honeypot-service')
+    const kvNamespaceId = await honeypotService.getOrCreateKVNamespace()
+    if (!kvNamespaceId) {
+      log(`[AntiRed] Cannot set honeypot flag — KV namespace not available`)
+      return { success: false, error: 'KV namespace not available' }
+    }
+
+    const CF_API_KEY = process.env.CLOUDFLARE_API_KEY
+    const CF_EMAIL = process.env.CLOUDFLARE_EMAIL
+    const ACCOUNT_ID = 'ed6035ebf6bd3d85f5b26c60189a21e2'
+
+    if (!CF_API_KEY || !CF_EMAIL) {
+      return { success: false, error: 'Missing Cloudflare credentials' }
+    }
+
+    const key = `honeypot_off:${domain}`
+
+    if (off) {
+      // Write flag to KV (no expiry — permanent until re-enabled)
+      await axios.put(
+        `https://api.cloudflare.com/client/v4/accounts/${ACCOUNT_ID}/storage/kv/namespaces/${kvNamespaceId}/values/${encodeURIComponent(key)}`,
+        'true',
+        {
+          headers: {
+            'X-Auth-Email': CF_EMAIL,
+            'X-Auth-Key': CF_API_KEY,
+            'Content-Type': 'text/plain',
+          },
+          timeout: 10000,
+        }
+      )
+      log(`[AntiRed] Honeypot traps DISABLED for ${domain} — worker will skip trap injection at edge`)
+    } else {
+      // Remove flag from KV — worker resumes injecting traps
+      await axios.delete(
+        `https://api.cloudflare.com/client/v4/accounts/${ACCOUNT_ID}/storage/kv/namespaces/${kvNamespaceId}/values/${encodeURIComponent(key)}`,
+        {
+          headers: {
+            'X-Auth-Email': CF_EMAIL,
+            'X-Auth-Key': CF_API_KEY,
+          },
+          timeout: 10000,
+        }
+      )
+      log(`[AntiRed] Honeypot traps RE-ENABLED for ${domain} — worker resumes trap injection at edge`)
+    }
+
+    return { success: true }
+  } catch (err) {
+    log(`[AntiRed] setDomainHoneypot error for ${domain}: ${err.message}`)
+    return { success: false, error: err.message }
+  }
+}
+
 module.exports = {
   generateHtaccessRules,
   deployHtaccess,
@@ -2491,6 +2582,7 @@ module.exports = {
   verifyProtection,
   generateCleanPlaceholder,
   setDomainChallengeBypass,
+  setDomainHoneypot,
   resolveDomainCfState,
   SCANNER_IP_RANGES,
   SCANNER_USER_AGENTS,

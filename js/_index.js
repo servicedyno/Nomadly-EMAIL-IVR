@@ -11900,6 +11900,10 @@ Enter new value:`), bc)
       // Visitor Captcha (Gold-only feature) — show locked button for non-Gold users
       const isGoldPlan = /Golden Anti-Red HostPanel/i.test(plan.plan || '')
       buttons.push([isGoldPlan ? user.manageVisitorCaptcha : user.manageVisitorCaptchaLocked])
+      // Honeypot Traps (Monthly-plan feature) — locked button for weekly plans
+      const { isWeeklyPlan } = require('./hosting-scheduler')
+      const isMonthlyHostPlan = !isWeeklyPlan(plan.plan || '')
+      buttons.push([isMonthlyHostPlan ? user.manageHoneypot : user.manageHoneypotLocked])
       // Site status toggle — label depends on current state
       if (siteStatus === 'online') {
         buttons.push([user.takeSiteOffline])
@@ -15616,6 +15620,51 @@ All verified numbers generated during sourcing.`))
         return send(chatId, t.antiRedStatusOff(domain), k.of([[t.antiRedTurnOn], ['↩️ Back']]), { parse_mode: 'HTML' })
       }
       return send(chatId, t.antiRedStatusOn(domain), k.of([[t.antiRedTurnOff], ['↩️ Back']]), { parse_mode: 'HTML' })
+    }
+    // 🍯 Honeypot Traps button (Monthly-only) — locked variant nudges upgrade; active variant opens toggle
+    if (message === user.manageHoneypotLocked) {
+      return send(chatId, t.honeypotMonthlyOnly, k.of([[user.upgradeHostingPlan], [user.backToMyHostingPlans]]), { parse_mode: 'HTML' })
+    }
+    if (message === user.manageHoneypot) {
+      const domain = info?.selectedHostingDomain
+      if (!domain) return goto.myHostingPlans()
+      const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain, deleted: { $ne: true } })
+      if (!plan) return send(chatId, trans('t.planNotFound'), k.of([[user.backToMyHostingPlans]]))
+      const { isWeeklyPlan } = require('./hosting-scheduler')
+      if (isWeeklyPlan(plan.plan || '')) {
+        return send(chatId, t.honeypotMonthlyOnly, k.of([[user.upgradeHostingPlan], [user.backToMyHostingPlans]]), { parse_mode: 'HTML' })
+      }
+      // Main + every addon domain — each has its own Worker route / KV flag.
+      const allPlanDomains = [plan.domain, ...(Array.isArray(plan.addonDomains) ? plan.addonDomains : [])]
+        .map(d => (typeof d === 'string' ? d : d?.domain) || '')
+        .map(d => d.toLowerCase())
+        .filter(Boolean)
+      const uniquePlanDomains = Array.from(new Set(allPlanDomains))
+      await saveInfo('honeypotFromPlan', true)
+      const antiRedService = require('./anti-red-service')
+
+      if (uniquePlanDomains.length > 1) {
+        const states = await Promise.all(uniquePlanDomains.map(async d => {
+          const s = await antiRedService.resolveDomainCfState(d, db)
+          return { d, hasCF: s.hasCloudflare, off: s.honeypotOff }
+        }))
+        const rows = states.map(s => [t.honeypotDomainButton(s.d, s.off, s.hasCF)])
+        rows.push([user.backToMyHostingPlans])
+        await saveInfo('honeypotPickerDomains', uniquePlanDomains)
+        await set(state, chatId, 'action', 'honeypot-pick-domain')
+        return send(chatId, t.honeypotPickDomain, k.of(rows), { parse_mode: 'HTML' })
+      }
+
+      await set(state, chatId, 'domainToManage', domain)
+      const cf = await antiRedService.resolveDomainCfState(domain, db)
+      if (!cf.hasCloudflare) {
+        return send(chatId, t.antiRedNoCF(domain), k.of([[user.backToMyHostingPlans]]), { parse_mode: 'HTML' })
+      }
+      await set(state, chatId, 'action', 'honeypot-toggle')
+      if (cf.honeypotOff) {
+        return send(chatId, t.honeypotStatusOff(domain), k.of([[t.honeypotTurnOn], ['↩️ Back']]), { parse_mode: 'HTML' })
+      }
+      return send(chatId, t.honeypotStatusOn(domain), k.of([[t.honeypotTurnOff], ['↩️ Back']]), { parse_mode: 'HTML' })
     }
     if (message === user.toggleAutoRenew) {
       const domain = info?.selectedHostingDomain
@@ -34396,6 +34445,80 @@ Select a category:`), k.of(catBtns))
       log(`[AntiRed-Bot] Error disabling for ${domain}: ${e.message}`)
       return send(chatId, t.antiRedError)
     }
+  }
+
+  // ── 🍯 Honeypot Traps: multi-domain picker (Monthly plans with addons) ──
+  if (action === 'honeypot-pick-domain') {
+    if (isBackPress(message) || message === user.backToMyHostingPlans) {
+      await saveInfo('honeypotFromPlan', false)
+      if (info?.selectedHostingDomain) return goto.viewHostingPlanDetails(info.selectedHostingDomain)
+      return goto.myHostingPlans()
+    }
+    const allowed = Array.isArray(info?.honeypotPickerDomains) ? info.honeypotPickerDomains : []
+    const m = typeof message === 'string' ? message.match(/·\s*([^\s·]+)\s*$/) : null
+    const picked = m ? m[1].toLowerCase() : ''
+    if (!picked || !allowed.includes(picked)) {
+      return send(chatId, trans('t.selectValidOption'))
+    }
+    await set(state, chatId, 'domainToManage', picked)
+    const antiRedService = require('./anti-red-service')
+    const cf = await antiRedService.resolveDomainCfState(picked, db)
+    if (!cf.hasCloudflare) {
+      return send(chatId, t.antiRedNoCF(picked), k.of([[user.backToMyHostingPlans]]), { parse_mode: 'HTML' })
+    }
+    await set(state, chatId, 'action', 'honeypot-toggle')
+    if (cf.honeypotOff) {
+      return send(chatId, t.honeypotStatusOff(picked), k.of([[t.honeypotTurnOn], ['↩️ Back']]), { parse_mode: 'HTML' })
+    }
+    return send(chatId, t.honeypotStatusOn(picked), k.of([[t.honeypotTurnOff], ['↩️ Back']]), { parse_mode: 'HTML' })
+  }
+
+  // ── 🍯 Honeypot Traps: on/off toggle (Monthly plans) ──
+  // Turning off ONLY suppresses trap injection via the CF Worker KV flag
+  // ('honeypot_off:{domain}'). Visitor Captcha, scanner cloaking, IP bans and
+  // WAF rules keep running — nothing else about anti-red is disabled.
+  if (action === 'honeypot-toggle') {
+    if (isBackPress(message)) {
+      if (info?.honeypotFromPlan && info?.selectedHostingDomain) {
+        await saveInfo('honeypotFromPlan', false)
+        return goto.viewHostingPlanDetails(info.selectedHostingDomain)
+      }
+      if (info?.selectedHostingDomain) return goto.viewHostingPlanDetails(info.selectedHostingDomain)
+      return goto.myHostingPlans()
+    }
+    if (message === t.honeypotTurnOff || message === t.honeypotTurnOn) {
+      const disable = message === t.honeypotTurnOff
+      const domain = info?.domainToManage
+      if (!domain) return send(chatId, trans('t.noDomainSelected'))
+      send(chatId, disable ? t.honeypotTurningOff(domain) : t.honeypotTurningOn(domain), { parse_mode: 'HTML' })
+      try {
+        const antiRedService = require('./anti-red-service')
+        const cf = await antiRedService.resolveDomainCfState(domain, db)
+        if (!cf.hasCloudflare) return send(chatId, t.antiRedNoCF(domain), { parse_mode: 'HTML' })
+        const result = await antiRedService.setDomainHoneypot(domain, disable)
+        if (result?.success) {
+          await db.collection('registeredDomains').updateOne(
+            { _id: domain },
+            disable ? { $set: { 'val.honeypotOff': true } } : { $unset: { 'val.honeypotOff': '' } },
+            { upsert: true }
+          )
+          const doneMsg = disable ? t.honeypotDisabled(domain) : t.honeypotEnabled(domain)
+          if (info?.honeypotFromPlan && info?.selectedHostingDomain) {
+            await send(chatId, doneMsg, { parse_mode: 'HTML' })
+            await saveInfo('honeypotFromPlan', false)
+            return goto.viewHostingPlanDetails(info.selectedHostingDomain)
+          }
+          await set(state, chatId, 'action', 'honeypot-toggle')
+          if (disable) return send(chatId, doneMsg, k.of([[t.honeypotTurnOn], ['↩️ Back']]), { parse_mode: 'HTML' })
+          return send(chatId, doneMsg, k.of([[t.honeypotTurnOff], ['↩️ Back']]), { parse_mode: 'HTML' })
+        }
+        return send(chatId, t.honeypotError)
+      } catch (e) {
+        log(`[Honeypot-Bot] Error toggling for ${domain}: ${e.message}`)
+        return send(chatId, t.honeypotError)
+      }
+    }
+    return send(chatId, trans('t.selectValidOption'))
   }
   
   // DNS Management Confirmation for Hosting Domains

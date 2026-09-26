@@ -450,6 +450,10 @@
       "jsChallenge": {
         "label": "विज़िटर कैप्चा (JS चुनौती)",
         "desc": "प्रति-डोमेन बॉट चुनौती — गोल्डन योजना केवल। डोमेन टैब में प्रति-डोमेन प्रबंधित करें।"
+      },
+      "honeypot": {
+        "label": "Honeypot ट्रैप",
+        "desc": "छिपे हुए चारे जो बॉट्स को पकड़कर स्वतः बैन करते हैं। केवल मासिक प्लान। JSON/API प्रतिक्रियाएँ कभी संशोधित नहीं होतीं।"
       }
     },
     "captchaGoldOnlyError": "विज़िटर कैप्चा गोल्डन एंटी-रेड होस्टपैनल योजनाओं के लिए विशेष है। इसे सक्षम करने के लिए अपनी योजना को अपग्रेड करें।",
@@ -458,6 +462,14 @@
     "captchaStatusDisabled": "विज़िटर कैप्चा डिसेबल",
     "failedToggle": "टॉगल करने में विफल",
     "captchaDefaultGoldError": "विज़िटर कैप्चा गोल्डन एंटी-रेड होस्टपैनल योजनाओं के लिए विशेष है।",
+    "honeypotMonthlyOnlyError": "Honeypot ट्रैप प्रबंधन मासिक प्लान (Premium या Golden) पर उपलब्ध है। प्रबंधित करने के लिए अपग्रेड करें।",
+    "honeypotDisableWarning": "Honeypot ट्रैप बंद करने से आपके HTML पेजों से छिपे बॉट चारे हट जाते हैं। विज़िटर Captcha, स्कैनर क्लोकिंग, IP बैन और WAF सक्रिय रहते हैं।\n\nHoneypot ट्रैप बंद करें?",
+    "honeypotStatusEnabled": "Honeypot ट्रैप सक्षम",
+    "honeypotStatusDisabled": "Honeypot ट्रैप अक्षम",
+    "monthlyOnly": "केवल मासिक",
+    "monthlyOnlyTooltip": "Honeypot ट्रैप प्रबंधन मासिक प्लान पर उपलब्ध है। आपका प्लान: {{plan}}",
+    "disableHoneypotTitle": "Honeypot ट्रैप अक्षम करें",
+    "enableHoneypotTitle": "Honeypot ट्रैप सक्षम करें",
     "protectionActive": "सुरक्षा सक्रिय",
     "protectionSub": "{{active}} में से {{total}} सुरक्षा परतें सक्षम हैं",
     "protectionLayers": "सुरक्षा परतें",

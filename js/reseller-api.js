@@ -1154,6 +1154,52 @@ function createResellerApi(deps = {}) {
   }))
 
   // ════════════════════════════════════════════════════════
+  // HONEYPOT TRAPS (Monthly plans — Premium or Golden) — read + set
+  // Turning traps off only suppresses the hidden decoy markup via the CF
+  // Worker KV flag. Visitor Captcha, scanner cloaking, IP bans and WAF stay on.
+  // ════════════════════════════════════════════════════════
+  router.get('/hosting/honeypot/:domain', apiKeyAuth, h(async (req, res) => {
+    const domain = String(req.params.domain || '').trim().toLowerCase()
+    if (!domainOk(domain)) return res.status(400).json({ error: 'invalid_domain' })
+    const acct = await findOwnedAccountByDomain(req, domain)
+    if (!acct) return res.status(404).json({ error: 'not_found', message: 'No hosting account for that domain under your account.' })
+    const { isWeeklyPlan } = require('./hosting-scheduler')
+    const isMonthly = !isWeeklyPlan(acct.plan || '')
+    const cf = await antiRed.resolveDomainCfState(domain, getDb())
+    res.json({
+      domain,
+      cpanel_username: acct._id || acct.username,
+      plan: acct.plan || null,
+      is_monthly: isMonthly,
+      eligible: isMonthly && cf.hasCloudflare,
+      has_cloudflare: cf.hasCloudflare,
+      honeypot_enabled: isMonthly ? !cf.honeypotOff : false,
+      ...(isMonthly ? {} : { note: 'Honeypot Traps management is available on Monthly plans (Premium or Golden). Upgrade to manage it.' }),
+    })
+  }))
+
+  router.post('/hosting/honeypot/:domain', apiKeyAuth, h(async (req, res) => {
+    const domain = String(req.params.domain || '').trim().toLowerCase()
+    if (!domainOk(domain)) return res.status(400).json({ error: 'invalid_domain' })
+    const enabled = req.body?.enabled
+    if (typeof enabled !== 'boolean') return res.status(400).json({ error: 'invalid_body', message: 'Body must include { "enabled": true|false }.' })
+    const acct = await findOwnedAccountByDomain(req, domain)
+    if (!acct) return res.status(404).json({ error: 'not_found', message: 'No hosting account for that domain under your account.' })
+    const { isWeeklyPlan } = require('./hosting-scheduler')
+    if (isWeeklyPlan(acct.plan || '')) {
+      return res.status(403).json({ error: 'monthly_plan_required', message: 'Honeypot Traps management is available on Monthly plans (Premium or Golden).' })
+    }
+    const cf = await antiRed.resolveDomainCfState(domain, getDb())
+    if (!cf.hasCloudflare) return res.status(409).json({ error: 'no_cloudflare', message: 'Domain is not on Cloudflare; Honeypot Traps cannot be toggled.' })
+    if (!isLive()) return res.json({ mode: 'dry_run', domain, honeypot_enabled: enabled, note: 'Dry-run: no change applied to production Cloudflare / KV.' })
+    // honeypot ON  → off flag OFF (traps injected), val.honeypotOff cleared
+    // honeypot OFF → off flag ON  (traps skipped), val.honeypotOff=true
+    await antiRed.setDomainHoneypot(domain, !enabled)
+    await col('registeredDomains').updateOne({ _id: domain }, enabled ? { $unset: { 'val.honeypotOff': '' } } : { $set: { 'val.honeypotOff': true } }, { upsert: true })
+    res.json({ mode: 'live', domain, honeypot_enabled: enabled })
+  }))
+
+  // ════════════════════════════════════════════════════════
   // DOMAIN RENEWAL (pricing/simulation; live renewal not yet wired)
   // ════════════════════════════════════════════════════════
   router.post('/domains/:domain/renew', apiKeyAuth, h(async (req, res) => {

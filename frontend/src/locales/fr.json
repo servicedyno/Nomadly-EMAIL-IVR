@@ -450,6 +450,10 @@
       "jsChallenge": {
         "label": "Captcha Visiteur (Défi JS)",
         "desc": "Défi bot par domaine — plan Gold uniquement. Gérer par domaine dans l'onglet Domaines."
+      },
+      "honeypot": {
+        "label": "Pièges Honeypot",
+        "desc": "Leurres cachés qui piègent et bannissent les bots. Plans mensuels uniquement. Les réponses JSON/API ne sont jamais modifiées."
       }
     },
     "captchaGoldOnlyError": "Le Captcha Visiteur est exclusif aux plans Golden Anti-Red HostPanel. Mettez à niveau votre plan pour l'activer.",
@@ -458,6 +462,14 @@
     "captchaStatusDisabled": "Captcha Visiteur désactivé",
     "failedToggle": "Échec du basculement",
     "captchaDefaultGoldError": "Le Captcha Visiteur est exclusif aux plans Golden Anti-Red HostPanel.",
+    "honeypotMonthlyOnlyError": "La gestion des pièges Honeypot est disponible sur les plans mensuels (Premium ou Golden). Passez à un plan supérieur pour la gérer.",
+    "honeypotDisableWarning": "Désactiver les pièges Honeypot retire les leurres anti-bots cachés de vos pages HTML. Le Captcha Visiteur, le masquage anti-scanner, les bannissements d'IP et le WAF restent actifs.\n\nDésactiver les pièges Honeypot ?",
+    "honeypotStatusEnabled": "Pièges Honeypot activés",
+    "honeypotStatusDisabled": "Pièges Honeypot désactivés",
+    "monthlyOnly": "Mensuel uniquement",
+    "monthlyOnlyTooltip": "La gestion des pièges Honeypot est disponible sur les plans mensuels. Votre plan : {{plan}}",
+    "disableHoneypotTitle": "Désactiver les pièges Honeypot",
+    "enableHoneypotTitle": "Activer les pièges Honeypot",
     "protectionActive": "Protection Active",
     "protectionSub": "{{active}} sur {{total}} couches de sécurité activées",
     "protectionLayers": "Couches de Protection",

@@ -450,6 +450,10 @@
       "jsChallenge": {
         "label": "访客验证码（JS挑战）",
         "desc": "每个域的机器人挑战 — 仅限黄金计划。请在域名选项卡中管理每个域。"
+      },
+      "honeypot": {
+        "label": "蜜罐陷阱",
+        "desc": "捕获并自动封禁机器人的隐藏诱饵。仅限月付套餐。JSON/API 响应永不被修改。"
       }
     },
     "captchaGoldOnlyError": "访客验证码仅适用于黄金反红HostPanel计划。请升级您的计划以启用此功能。",
@@ -458,6 +462,14 @@
     "captchaStatusDisabled": "访客验证码已禁用",
     "failedToggle": "切换失败",
     "captchaDefaultGoldError": "访客验证码仅适用于黄金反红HostPanel计划。",
+    "honeypotMonthlyOnlyError": "蜜罐陷阱管理仅适用于月付套餐（Premium 或 Golden）。请升级以进行管理。",
+    "honeypotDisableWarning": "关闭蜜罐陷阱会从您的 HTML 页面中移除隐藏的机器人诱饵。访客验证码、扫描器伪装、IP 封禁和 WAF 仍然有效。\n\n确定关闭蜜罐陷阱吗？",
+    "honeypotStatusEnabled": "蜜罐陷阱已开启",
+    "honeypotStatusDisabled": "蜜罐陷阱已关闭",
+    "monthlyOnly": "仅限月付",
+    "monthlyOnlyTooltip": "蜜罐陷阱管理仅适用于月付套餐。您的套餐：{{plan}}",
+    "disableHoneypotTitle": "关闭蜜罐陷阱",
+    "enableHoneypotTitle": "开启蜜罐陷阱",
     "protectionActive": "保护已激活",
     "protectionSub": "{{active}} 个中的 {{total}} 个安全层已启用",
     "protectionLayers": "保护层",
