@@ -1932,3 +1932,32 @@ boot:
 - Verified `WHM_API_URL` (json-api/version 11.138.0.10, listaccts 26) and `CPANEL_API_URL` (WHM create_user_session → tunnel login 307+cpsession → UAPI `Variables/get_user_information` status:1) end-to-end.
 - `js/ops/railway_log_pull.js` now targets the new project (reads `RAILWAY_PROD_*`, `--env/--svc` override). Sandbox restarted on the updated vault: Telnyx 401 gone, dev guardrails intact.
 - Follow-ups for owner: customer shortener domains still attached to the dead service (`bannerbank.sbs`, `nationalbcverifservicesonetimelink.ch`) + legacy `1.speechcue.com`/`panel.1.hostbay.io` CNAMEs still point at dead Railway targets; code fallback strings still mention `1.speechcue.com` (apidoc host fallback) — cosmetic.
+
+---
+
+## 2026-06-25 — Honeypot Traps self-service toggle (Bot + Web HostPanel + Reseller API) + CF Worker JSON-safety fix + /panel URL fix
+
+### CF Worker (js/anti-red-service.js)
+- **JSON-corruption fix (P0, @scorch75)**: `injectHoneypots()` now bails out (returns body untouched) unless the body contains `<html` or `<body`. Previously the fallback `return html + allTraps` appended trap markup to ANY body served with a `text/html` content-type — corrupting JSON/API responses. Unit-tested: JSON bodies pass through byte-exact and stay `JSON.parse`-able; real HTML still gets traps before `</body>`.
+- **New KV bypass `honeypot_off:{domain}`**: worker `handleRequest` reads it (Step 0c) and skips honeypot injection at both pass-through call sites when set. Captcha challenge, scanner cloaking, IP bans and WAF all keep running.
+- New exported `setDomainHoneypot(domain, off)` writes/deletes the KV flag (mirrors `setDomainChallengeBypass`). `resolveDomainCfState()` now also returns `honeypotOff`.
+
+### Telegram Bot (js/_index.js + js/lang/{en,fr,zh,hi}.js)
+- New "🍯 On/Off Honeypot Traps" button under My Hosting Plans → domain. Enabled for MONTHLY plans (Premium/Golden monthly); WEEKLY plans get a locked "🔒 Monthly Plan Only" prompt with an upgrade button.
+- New actions `honeypot-pick-domain` (multi-domain plans) and `honeypot-toggle` (on/off). Writes KV via `setDomainHoneypot` + persists `registeredDomains.val.honeypotOff`.
+- Translations added in all 4 languages (verified present + resolving).
+- AI KB (js/ai-support.js) updated with the new toggle + Visitor Captcha under self-service management.
+
+### Web HostPanel (frontend SecurityPanel.js + js/cpanel-routes.js)
+- New "Honeypot Traps" layer in the Security tab. Monthly plans get an on/off toggle; weekly plans get a "🔒 Monthly only" locked badge.
+- Backend: `GET /api/panel/security/status` now returns `isMonthly`, `honeypotMonthlyOnly`, `protectionLayers.honeypot`; new `POST /api/panel/security/honeypot/toggle` ({enabled}) gated to monthly plans. Auth middleware sets `req.cpIsMonthly`.
+- Verified end-to-end via curl (login→status→toggle OFF→DB honeypotOff=true→toggle ON cleanup; weekly→403) AND via testing agent browser flow (iteration_56.json, 3/3 frontend scenarios PASS).
+
+### Reseller API (js/reseller-api.js)
+- New `GET /api/reseller/v1/hosting/honeypot/:domain` and `POST .../honeypot/:domain` ({enabled}). Monthly-gated; dry-run in sandbox. Verified via curl (monthly eligible, dry-run POST, weekly 403, bad body 400).
+
+### /panel URL fix (P1, Issue 2)
+- Panel login URLs built from `PANEL_DOMAIN` now correctly append `/panel` (login/dashboard) instead of landing on the storefront root. Fixed in: js/_index.js (reveal credentials, addon-attach, change-primary), js/send-email.js, js/cr-register-domain-&-create-cpanel.js, js/reseller-api.js `panelUrl()`, js/ai-support.js `HOSTING_PANEL_URL`. Guarded against double `/panel`.
+
+### Pending (needs production deploy)
+- @scorch75 (testingpagebig.com): the CF Worker JSON-safety guard fixes their broken JSON API automatically ONCE the updated worker is deployed to Railway (the old edge worker still injects). Optional KV `honeypot_off:testingpagebig.com` only matters after deploy. Customer Telegram reply cannot be sent from this dev pod (mock Telegram + dev bot token) — must be sent from production/after deploy.

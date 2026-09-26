@@ -332,3 +332,18 @@ Both prod bots (Nomadly + SMADAV) run identical deploy config — `VPS_DEFAULT_P
 ## 2026-06 (fork) — SMADAV Railway domain-save FIXED
 - Set SMADAV service (`6d40a2dd`) `API_KEY_RAILWAY` = `b70c379c-bcd1-465a-ae8f-a416e01ab1ba` (user-supplied Project Access Token for prod project `0f41a48b`, env `b9a9e5d2`). Old token `8a6f6eb8…` (defunct project `c23ac3d9`) removed via `variableCollectionUpsert` (replace:false). Triggered SMADAV redeploy.
 - Verified (`js/ops/railway_domain_save_probe.js`): BOTH bots now ✅ — Nomadly customDomains=4, SMADAV customDomains=2 (`1.panel.smadavhost.com`, `1.smadavspeech.com`), serviceDomains samdav1.up.railway.app. The 3 RAILWAY_* IDs were already correct on both and unchanged.
+
+---
+
+## Update 2026-06-25 — Honeypot Traps toggle across all 3 surfaces + Worker JSON-safety + /panel fix
+
+**Implemented & verified:**
+- CF Worker `injectHoneypots` safety guard (only inject into real HTML) — fixes JSON/API corruption (@scorch75 P0). Unit-tested.
+- New KV `honeypot_off:{domain}` bypass + `setDomainHoneypot()`; other anti-red layers unaffected.
+- Telegram bot toggle "🍯 On/Off Honeypot Traps" (Monthly-only; Weekly locked+upgrade) — en/fr/zh/hi.
+- Web HostPanel Security-tab Honeypot toggle (Monthly toggle / Weekly locked) — backend `/security/honeypot/toggle` + status fields. Tested via curl + testing agent (iteration_56, 3/3 PASS).
+- Reseller API `GET/POST /hosting/honeypot/:domain` (monthly-gated) — curl-verified.
+- AI KB updated. `/panel` URL builders fixed (bot/email/registration/reseller/AI KB) to append `/panel`.
+
+**Pending (deploy-dependent):**
+- Deploy updated CF Worker to Railway → auto-fixes @scorch75's JSON API. Then (optionally) set KV `honeypot_off:testingpagebig.com` and send the customer their fix confirmation from production (dev pod uses mock Telegram, cannot reach real users).

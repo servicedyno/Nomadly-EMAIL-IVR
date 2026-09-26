@@ -44,9 +44,11 @@ const { registerHostingMgmtRoutes } = require('./reseller-hosting-mgmt') // in-a
 // Customer-facing HostPanel URL (same one the Telegram bot shows).
 function panelUrl() {
   const pd = process.env.PANEL_DOMAIN
-  if (pd) return pd.startsWith('http') ? pd : `https://${pd}`
-  const base = String(process.env.SELF_URL_PROD || process.env.SELF_URL || '').replace('/api', '')
-  return base ? `${base}/panel` : null
+  const raw = pd
+    ? (pd.startsWith('http') ? pd : `https://${pd}`)
+    : String(process.env.SELF_URL_PROD || process.env.SELF_URL || '').replace('/api', '')
+  if (!raw) return null
+  return `${raw.replace(/\/+$/, '').replace(/\/panel$/i, '')}/panel`
 }
 const serverIp = () => process.env.WHM_HOST || process.env.WHM_SERVER_IP || null
 

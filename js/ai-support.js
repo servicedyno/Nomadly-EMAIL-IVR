@@ -48,7 +48,7 @@ const SUPPORT_HANDLE = process.env.SUPPORT_HANDLE || '@support'
 const SIP_DOMAIN = process.env.SIP_DOMAIN || 'sip.speechcue.com'
 const CALL_PAGE_URL = process.env.CALL_PAGE_URL || 'https://speechcue.com/call'
 const PANEL_DOMAIN = process.env.PANEL_DOMAIN || ''
-const HOSTING_PANEL_URL = PANEL_DOMAIN ? (PANEL_DOMAIN.startsWith('http') ? PANEL_DOMAIN : `https://${PANEL_DOMAIN}`) : ''
+const HOSTING_PANEL_URL = PANEL_DOMAIN ? `${(PANEL_DOMAIN.startsWith('http') ? PANEL_DOMAIN : `https://${PANEL_DOMAIN}`).replace(/\/+$/, '').replace(/\/panel$/i, '')}/panel` : ''
 
 // ── Subscription plan data (from environment) ──
 const PRICE_DAILY = process.env.PRICE_DAILY_SUBSCRIPTION || '50'

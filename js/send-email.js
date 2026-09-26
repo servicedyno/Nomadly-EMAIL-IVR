@@ -187,9 +187,10 @@ function buildEmailHtml(info, response, pin) {
   const plan = info.plan || 'Hosting Plan'
   const t = T[langOf(info)]
   const panelDomain = process.env.PANEL_DOMAIN
-  const panelUrl = panelDomain
+  const panelBase = panelDomain
     ? (panelDomain.startsWith('http') ? panelDomain : `https://${panelDomain}`)
-    : `${(process.env.SELF_URL_PROD || '').replace('/api', '')}/panel`
+    : `${(process.env.SELF_URL_PROD || '').replace('/api', '')}`
+  const panelUrl = `${(panelBase || '').replace(/\/+$/, '').replace(/\/panel$/i, '')}/panel`
   const brandName = process.env.CHAT_BOT_BRAND || 'Nomadly'
   const supportLink = process.env.APP_SUPPORT_LINK || '#'
 

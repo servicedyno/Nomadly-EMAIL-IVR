@@ -11935,9 +11935,10 @@ Enter new value:`), bc)
       const { pin } = await cpanelAuth.resetPin(cpanelAccounts, plan.cpUser)
 
       const panelDomain = process.env.PANEL_DOMAIN
-      const panelUrl = panelDomain
+      const panelBase = panelDomain
         ? (panelDomain.startsWith('http') ? panelDomain : `https://${panelDomain}`)
-        : `${process.env.SELF_URL_PROD?.replace('/api', '')}/panel`
+        : `${process.env.SELF_URL_PROD?.replace('/api', '')}`
+      const panelUrl = `${(panelBase || '').replace(/\/+$/, '').replace(/\/panel$/i, '')}/panel`
       const text = trans('t.credentialsHeader', plan.domain) + '\n\n'
         + `<b>${trans('t.usernameLabel')}</b> <code>${plan.cpUser}</code>\n`
         + `<b>${trans('t.credentialsPinLabel')}</b> <code>${pin}</code>\n\n`
@@ -16408,9 +16409,10 @@ All verified numbers generated during sourcing.`))
       await send(chatId, t.attachDomainAlreadyAttached(candidate), { parse_mode: 'HTML' })
     } else if (result.ok) {
       const panelDomain = process.env.PANEL_DOMAIN
-      const panelUrl = panelDomain
+      const panelBase = panelDomain
         ? (panelDomain.startsWith('http') ? panelDomain : `https://${panelDomain}`)
-        : `${(process.env.SELF_URL_PROD || '').replace('/api', '')}/panel`
+        : `${(process.env.SELF_URL_PROD || '').replace('/api', '')}`
+      const panelUrl = `${(panelBase || '').replace(/\/+$/, '').replace(/\/panel$/i, '')}/panel`
       await send(chatId, t.attachDomainSuccess(candidate, result.docRoot, panelUrl), { parse_mode: 'HTML' })
       try {
         notifyAdmin(`➕ <b>Addon domain attached</b>\nUser: ${chatId}\nPlan: <code>${plan.plan}</code>\nPrimary: <b>${plan.domain}</b>\nAttached: <b>${candidate}</b>`)
@@ -16595,9 +16597,10 @@ All verified numbers generated during sourcing.`))
     })()
 
     const panelDomain = process.env.PANEL_DOMAIN
-    const panelUrl = panelDomain
+    const panelBase = panelDomain
       ? (panelDomain.startsWith('http') ? panelDomain : `https://${panelDomain}`)
-      : `${(process.env.SELF_URL_PROD || '').replace('/api', '')}/panel`
+      : `${(process.env.SELF_URL_PROD || '').replace('/api', '')}`
+    const panelUrl = `${(panelBase || '').replace(/\/+$/, '').replace(/\/panel$/i, '')}/panel`
     await send(chatId, t.changePrimaryDomainSuccess(candidate, oldDomain, panelUrl), { parse_mode: 'HTML' })
     try {
       notifyAdmin(`🔄 <b>Primary domain changed</b>\nUser: ${chatId}\nPlan: <code>${plan.plan}</code>\ncpUser: ${plan.cpUser}\nOld: <b>${oldDomain}</b>\nNew: <b>${candidate}</b>`)

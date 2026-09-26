@@ -834,9 +834,10 @@ NS2: <code>${cfNameservers[1]}</code>
       }
       
       const panelDomain = process.env.PANEL_DOMAIN
-      const panelUrl = panelDomain
+      const panelBase = panelDomain
         ? (panelDomain.startsWith('http') ? panelDomain : `https://${panelDomain}`)
-        : `${process.env.SELF_URL_PROD?.replace('/api', '')}/panel`
+        : `${process.env.SELF_URL_PROD?.replace('/api', '')}`
+      const panelUrl = `${(panelBase || '').replace(/\/+$/, '').replace(/\/panel$/i, '')}/panel`
 
       // If the registry hasn't published our nameservers yet (pre-delegation
       // TLD race), the DnsHealer worker is already retrying in the background

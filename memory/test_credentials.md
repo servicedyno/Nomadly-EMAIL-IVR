@@ -79,3 +79,10 @@
 - Cloudflare zones (same CF account, `expressdrop247@gmail.com`): `smadavspeech.com` `4e3fa86fdd52ea305d3ae2e57a9705aa`, `smadavhost.com` `b3667eb4a8adce1f33b86d7f9d614431`.
 - SIP (branded Telnyx domain `sip.smadavspeech.com`): needs A `192.76.120.10` + SRV `_sip._tcp/_udp`(5060) `_sips._tcp`(5061) → `sip.telnyx.com` (mirrors Nomadly `sip.speechcue.com`). Added this session. Telnyx conn `3034191521164298080` ("Smadav Cloud Phone SIP", active). Twilio SIP domain `smadav-7937a0.sip.twilio.com` (Twilio-hosted, no DNS). Shared Twilio account with Nomadly, isolated via `TWILIO_SIP_DOMAIN_PREFIX=smadav`.
 - Ops helpers (js/ops/, read the SAMDAV service by id): `smadav_discover.js`, `smadav_inspect.js`, `smadav_domains.js` (attach 1.* domains), `smadav_cf_apply.js` (railway DNS), `smadav_cf_redirects.js` (bare→1. 301), `smadav_env_update.js` (--apply), `smadav_sip_dns.js`, `smadav_sip_verify.js`, `smadav_provider_dump.js`.
+
+## Honeypot Traps feature test accounts (sandbox, local Mongo `test`) — added 2026-06-25
+- Re-seed: `cd /app && node scripts/seed_honeypot_test.js`
+- MONTHLY hosting login (toggle ENABLED): username `hptestmonthly`, PIN `135790`, plan "Premium Anti-Red HostPanel", domain `hp-monthly-test.com`
+- WEEKLY hosting login (toggle LOCKED): username `hptestweekly`, PIN `135790`, plan "Premium Anti-Red (1-Week)", domain `hp-weekly-test.com`
+- Both owned by reseller-key owner chatId `5590563715`, so the reseller API endpoints `GET/POST /api/reseller/v1/hosting/honeypot/:domain` resolve them too.
+- Web panel: `${REACT_APP_BACKEND_URL}/panel` → login → Security tab → "Honeypot Traps" row (data-testid `sec-honeypot-toggle` / `sec-honeypot-locked`).
