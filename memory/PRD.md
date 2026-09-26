@@ -309,3 +309,10 @@ Both prod bots (Nomadly + SMADAV) run identical deploy config — `VPS_DEFAULT_P
 - ✅ **VPS (Linux) ubuntu-24-04 / s-1vcpu-1gb / nyc1** — droplet 603728535 active in **27s**, IP 67.205.190.241, **SSH:22 OPEN**, then destroyed (DO API → 404). Log `memory/vps_e2e.log`. (Fixed the E2E's success check: DO "active" maps to canonical "running".)
 - ✅ Cleanup verified: DO droplet inventory back to the 2 infra droplets only (whm2-fra1, dynopay-prod-ams3); no test droplets leaked.
 - Note: golden images ws2019/ws2022/ws2025 all `available` in 9 regions (tor1,syd1,sgp1,sfo3,nyc3,lon1,fra1,blr1,ams3). Contabo still `invalid_client` but VPS defaults to DO so Linux orders are unaffected.
+
+## 2026-06 (fork) — Customer PHP extensions installed via WHM API (scorch75 / ntes392b)
+- Escalation `fZbxp` (@scorch75, testingpagebig.com, ea-php83) asked for `fileinfo` + `intl`. Root SSH is key-only, so used **WHM API 1 `package_manager_submit_actions`** (works through `WHM_API_URL` tunnel + `WHM_TOKEN`).
+- Reusable ops script: `js/ops/whm_ea4_install_ext.js [--dry] <pkg...>` (checks `package_manager_get_package_info`, submits install, polls, re-verifies).
+- Result: `ea-php83-php-fileinfo` + `ea-php83-php-intl` = `installed` (8.3.33); `restartservice service=apache_php_fpm` → FPM 82/83 restarted OK; httpd running.
+- Could NOT do an end-to-end HTTP probe: anti-red CF Worker cloaks datacenter/headless visitors (redirects to iana.org). Probe file was created and deleted (`Fileman` UAPI) — docroot left clean. Note: `servicestatus service=apache_php_fpm` 502s through the tunnel (use `restartservice` output or `httpd` status instead).
+- Still pending (user said to park it): bot hosting-panel URLs omit `/panel` (6 sites: `_index.js` ×3, `ai-support.js`, `cr-register-domain-&-create-cpanel.js`, `reseller-api.js`); SMADAV `BLOCKBEE_CRYTPO_PAYMENT_ON=true` → set `false` in Railway.
